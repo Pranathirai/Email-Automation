@@ -594,7 +594,8 @@ class MailerProAPITester:
             f"Search Contacts - '{search_term}'",
             "GET",
             f"contacts?search={search_term}",
-            200
+            200,
+            auth_required=True
         )
         return success, response
 
