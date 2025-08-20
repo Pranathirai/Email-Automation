@@ -224,6 +224,60 @@ class PaymentTransaction(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+class SMTPConfig(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    name: str  # User-friendly name like "My Gmail Account"
+    provider: SMTPProvider
+    email: EmailStr  # Email address for this SMTP config
+    # SMTP Settings
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_username: Optional[str] = None
+    smtp_password: Optional[str] = None  # Encrypted
+    use_tls: bool = True
+    use_ssl: bool = False
+    # OAuth Settings (for Gmail/Outlook)
+    access_token: Optional[str] = None  # Encrypted
+    refresh_token: Optional[str] = None  # Encrypted
+    token_expires_at: Optional[datetime] = None
+    # Status
+    is_active: bool = True
+    is_verified: bool = False
+    last_test_at: Optional[datetime] = None
+    daily_sent_count: int = 0
+    daily_limit: int = 300  # Daily sending limit for this account
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class SMTPConfigCreate(BaseModel):
+    name: str
+    provider: SMTPProvider
+    email: EmailStr
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_username: Optional[str] = None
+    smtp_password: Optional[str] = None
+    use_tls: bool = True
+    use_ssl: bool = False
+    daily_limit: int = 300
+
+class SMTPConfigUpdate(BaseModel):
+    name: Optional[str] = None
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_username: Optional[str] = None
+    smtp_password: Optional[str] = None
+    use_tls: Optional[bool] = None
+    use_ssl: Optional[bool] = None
+    daily_limit: Optional[int] = None
+    is_active: Optional[bool] = None
+
+class SMTPTestRequest(BaseModel):
+    test_email: EmailStr
+    subject: str = "Test Email from MailerPro"
+    content: str = "This is a test email to verify your SMTP configuration."
+
 class SubscriptionRequest(BaseModel):
     plan: str
     origin_url: str
