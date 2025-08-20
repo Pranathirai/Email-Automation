@@ -1759,71 +1759,93 @@ def main():
         crud_success = simple_campaign_id is not None
         
         if simple_campaign_id:
-            # Test dashboard stats (commonly accessed)
-            success_dashboard = tester.test_dashboard_stats()
+            # Test campaign retrieval
+            success_get, campaign_data = tester.test_get_single_campaign(simple_campaign_id)
+            print(f"     Get Campaign: {'✅ PASS' if success_get else '❌ FAIL'}")
             
-            # Test subscription plans (commonly accessed)
-            success_plans, plans_response = tester.run_test(
-                "Subscription Plans Access",
-                "GET",
-                "subscription/plans",
-                200,
-                auth_required=False  # This endpoint might not require auth
-            )
+            # Test campaign update
+            update_data = {"name": "Updated Simple A/B Test Campaign"}
+            success_update = tester.test_update_campaign(simple_campaign_id, update_data)
+            print(f"     Update Campaign: {'✅ PASS' if success_update else '❌ FAIL'}")
             
-            # Test current user info (commonly accessed)
-            success_me, me_response = tester.test_get_current_user()
+            # Test campaign validation
+            success_validate, validate_response = tester.test_campaign_validation(simple_campaign_id)
+            print(f"     Validate Campaign: {'✅ PASS' if success_validate else '❌ FAIL'}")
             
-            print(f"   Dashboard Stats: {'✅ PASS' if success_dashboard else '❌ FAIL'}")
-            print(f"   Subscription Plans: {'✅ PASS' if success_plans else '❌ FAIL'}")
-            print(f"   Current User Info: {'✅ PASS' if success_me else '❌ FAIL'}")
-            
-            # Test with a real CSV upload scenario
-            print(f"\n🔍 Testing Real-World CSV Upload Scenario...")
-            csv_content = """first_name,last_name,email,company,phone,tags
-Sarah,Johnson,sarah.johnson@company.com,Tech Solutions,555-1111,lead
-Mike,Davis,mike.davis@startup.com,Innovation Labs,555-2222,prospect
-Lisa,Wilson,lisa.wilson@enterprise.com,Big Corp,555-3333,customer"""
-            
-            files = {'file': ('real_test.csv', csv_content, 'text/csv')}
-            success_csv, csv_response = tester.run_test(
-                "Real CSV Upload Test",
-                "POST",
-                "contacts/upload-csv",
-                200,
-                files=files,
-                auth_required=True
-            )
-            
-            if success_csv:
-                print(f"   ✅ Real CSV upload successful")
-                print(f"   Contacts created: {csv_response.get('contacts_created', 0)}")
+            # Test campaign analytics (even if empty)
+            success_analytics = tester.test_campaign_analytics(simple_campaign_id)
+            print(f"     Campaign Analytics: {'✅ PASS' if success_analytics else '❌ FAIL'}")
+        
+        # Test subscription plans and dashboard
+        print(f"\n   Testing Supporting Endpoints...")
+        success_plans, plans_response = tester.run_test(
+            "Subscription Plans Access",
+            "GET",
+            "subscription/plans",
+            200,
+            auth_required=False
+        )
+        print(f"     Subscription Plans: {'✅ PASS' if success_plans else '❌ FAIL'}")
+        
+        success_dashboard = tester.test_dashboard_stats()
+        print(f"     Dashboard Stats: {'✅ PASS' if success_dashboard else '❌ FAIL'}")
+        
+        # Test enhanced dashboard stats
+        success_enhanced_dashboard, _ = tester.test_enhanced_dashboard_stats()
+        print(f"     Enhanced Dashboard: {'✅ PASS' if success_enhanced_dashboard else '❌ FAIL'}")
+        
+        # Test campaign list endpoint
+        success_campaigns_list, campaigns_response = tester.test_get_campaigns()
+        print(f"     Get All Campaigns: {'✅ PASS' if success_campaigns_list else '❌ FAIL'}")
+        
+        # Additional validation tests
+        print(f"\n   Testing Edge Cases...")
+        
+        # Test empty campaign creation (should fail)
+        empty_campaign_id = tester.test_create_enhanced_campaign(
+            name="Empty Campaign",
+            steps=[],  # No steps
+            description="Campaign with no steps"
+        )
+        empty_test_success = empty_campaign_id is not None  # Should still create but be invalid
+        print(f"     Empty Campaign Creation: {'✅ PASS' if empty_test_success else '❌ FAIL'}")
+        
+        if empty_campaign_id:
+            # This should show validation errors
+            success_empty_validate, empty_validate_response = tester.test_campaign_validation(empty_campaign_id)
+            if success_empty_validate:
+                is_valid = empty_validate_response.get('is_valid', True)
+                empty_validation_correct = not is_valid  # Should be invalid
+                print(f"     Empty Campaign Validation: {'✅ PASS' if empty_validation_correct else '❌ FAIL'}")
             else:
-                print(f"   ❌ Real CSV upload failed")
-            
-            # Test SMTP config creation (commonly used)
-            print(f"\n🔍 Testing Real-World SMTP Config Creation...")
-            smtp_id = tester.test_create_smtp_config(
-                name="Production Gmail",
-                provider="gmail",
-                email="user@gmail.com",
-                smtp_username="user@gmail.com",
-                smtp_password="app_password_here",
-                daily_limit=300
-            )
-            
-            if smtp_id:
-                print(f"   ✅ SMTP config creation successful")
-                
-                # Test SMTP config retrieval
-                success_smtp_get, smtp_response = tester.test_get_single_smtp_config(smtp_id)
-                print(f"   SMTP Config Retrieval: {'✅ PASS' if success_smtp_get else '❌ FAIL'}")
-                
-                # Test SMTP stats
-                success_stats, stats_response = tester.test_smtp_config_stats(smtp_id)
-                print(f"   SMTP Stats Access: {'✅ PASS' if success_stats else '❌ FAIL'}")
+                print(f"     Empty Campaign Validation: ❌ FAIL (API error)")
+        
+        # Test campaign with invalid variables
+        invalid_var_steps = [{
+            "sequence_order": 1,
+            "delay_days": 0,
+            "variations": [{
+                "name": "Invalid Vars",
+                "subject": "Hello {{invalid_variable}}",
+                "content": "Hi {{another_invalid}}, welcome!",
+                "weight": 100
+            }]
+        }]
+        
+        invalid_campaign_id = tester.test_create_enhanced_campaign(
+            name="Invalid Variables Campaign",
+            steps=invalid_var_steps,
+            description="Campaign with invalid variables"
+        )
+        
+        if invalid_campaign_id:
+            success_invalid_validate, invalid_validate_response = tester.test_campaign_validation(invalid_campaign_id)
+            if success_invalid_validate:
+                var_validation = invalid_validate_response.get('variable_validation', {})
+                has_missing_vars = len(var_validation.get('missing_variables', [])) > 0
+                print(f"     Invalid Variables Detection: {'✅ PASS' if has_missing_vars else '❌ FAIL'}")
             else:
-                print(f"   ❌ SMTP config creation failed")
+                print(f"     Invalid Variables Detection: ❌ FAIL (API error)")
 
         # Print final results
         print("\n" + "=" * 70)
