@@ -168,36 +168,111 @@ class ContactCreate(BaseModel):
     phone: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
 
+class CampaignVariation(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str  # e.g., "Variation A", "Variation B"
+    subject: str
+    content: str
+    weight: int = 50  # Distribution percentage (50% = equal split)
+
+class CampaignStep(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    sequence_order: int  # 1 for first email, 2 for follow-up, etc.
+    delay_days: int = 0  # Days to wait before sending (0 = immediate)
+    variations: List[CampaignVariation] = Field(default_factory=list)
+    conditions: Dict[str, Any] = Field(default_factory=dict)  # Conditional logic
+
 class Campaign(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     name: str
     description: Optional[str] = None
-    subject: str
-    content: str
+    # Multi-step campaign support
+    steps: List[CampaignStep] = Field(default_factory=list)
+    # Contact and targeting
     contact_ids: List[str] = Field(default_factory=list)
+    contact_list_ids: List[str] = Field(default_factory=list)  # Future: contact lists
+    # Sending configuration
+    smtp_config_ids: List[str] = Field(default_factory=list)  # Inbox rotation
+    daily_limit_per_inbox: int = 200
+    delay_min_seconds: int = 300  # 5 minutes minimum gap
+    delay_max_seconds: int = 1800  # 30 minutes maximum gap
+    # Campaign settings
     status: CampaignStatus = CampaignStatus.DRAFT
-    daily_limit: int = 50
-    delay_between_emails: int = 300
     personalization_enabled: bool = True
+    a_b_testing_enabled: bool = True
+    # Template and variables
+    available_variables: List[str] = Field(default_factory=lambda: [
+        "first_name", "last_name", "email", "company", "phone"
+    ])
+    custom_variables: Dict[str, str] = Field(default_factory=dict)
+    # Scheduling
+    scheduled_at: Optional[datetime] = None
+    timezone: str = "UTC"
+    # Analytics
+    total_sent: int = 0
+    total_delivered: int = 0
+    total_opened: int = 0
+    total_clicked: int = 0
+    total_replied: int = 0
+    # Metadata
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    scheduled_at: Optional[datetime] = None
 
 class CampaignCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    subject: str
-    content: str
+    steps: List[CampaignStep] = Field(default_factory=list)
     contact_ids: List[str] = Field(default_factory=list)
-    daily_limit: int = 50
-    delay_between_emails: int = 300
+    smtp_config_ids: List[str] = Field(default_factory=list)
+    daily_limit_per_inbox: int = 200
+    delay_min_seconds: int = 300
+    delay_max_seconds: int = 1800
     personalization_enabled: bool = True
+    a_b_testing_enabled: bool = True
+    timezone: str = "UTC"
+
+class CampaignUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    steps: Optional[List[CampaignStep]] = None
+    contact_ids: Optional[List[str]] = None
+    smtp_config_ids: Optional[List[str]] = None
+    daily_limit_per_inbox: Optional[int] = None
+    delay_min_seconds: Optional[int] = None
+    delay_max_seconds: Optional[int] = None
+    status: Optional[CampaignStatus] = None
+
+class VariablePreviewRequest(BaseModel):
+    template: str  # Template with {{variables}}
+    contact_id: str  # Contact to preview with
 
 class EmailTracking(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     campaign_id: str
+    campaign_step_id: str
+    variation_id: str
     contact_id: str
+    smtp_config_id: str
+    email: str
+    subject: str  # Personalized subject
+    content: str  # Personalized content
+    status: EmailStatus = EmailStatus.PENDING
+    # Tracking timestamps
+    sent_at: Optional[datetime] = None
+    delivered_at: Optional[datetime] = None
+    opened_at: Optional[datetime] = None
+    clicked_at: Optional[datetime] = None
+    bounced_at: Optional[datetime] = None
+    replied_at: Optional[datetime] = None
+    # Tracking data
+    tracking_pixel_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    click_links: List[str] = Field(default_factory=list)
+    user_agent: Optional[str] = None
+    ip_address: Optional[str] = None
+    # A/B testing
+    variation_name: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     email: str
     status: EmailStatus = EmailStatus.PENDING
     sent_at: Optional[datetime] = None
