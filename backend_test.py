@@ -826,7 +826,7 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
             files=files,
             auth_required=True
         )
-        return success
+        return success, response
 
     # Campaign Testing Methods
     def test_create_campaign(self, name, subject, content, contact_ids=None, description=None):
