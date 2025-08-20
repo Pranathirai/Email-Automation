@@ -747,7 +747,7 @@ def main():
         # Dashboard Stats Test
         print("\n" + "=" * 25 + " DASHBOARD STATS TEST " + "=" * 25)
         
-        # Test 16: Enhanced dashboard stats
+        # Test 18: Enhanced dashboard stats
         tester.test_enhanced_dashboard_stats()
 
         # Print final results
