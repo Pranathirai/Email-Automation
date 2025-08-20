@@ -1228,6 +1228,16 @@ const CampaignForm = ({ isEdit = false }) => {
             <Button onClick={handleSave} disabled={saving} className="flex-1">
               {saving ? 'Saving...' : (isEdit ? 'Update Campaign' : 'Create Campaign')}
             </Button>
+            {!isEdit && (
+              <Button onClick={handleSaveAndSend} disabled={saving} variant="default">
+                {saving ? 'Saving...' : 'Create & Send'}
+              </Button>
+            )}
+            {isEdit && campaign.status === 'draft' && (
+              <Button onClick={handleSendCampaign} disabled={sending} variant="default">
+                {sending ? 'Sending...' : 'Send Now'}
+              </Button>
+            )}
           </div>
         </div>
       </div>
