@@ -547,7 +547,8 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
             "Enhanced Dashboard Stats",
             "GET",
             "stats/dashboard",
-            200
+            200,
+            auth_required=True
         )
         if success:
             required_fields = ['total_contacts', 'total_campaigns', 'recent_contacts', 
