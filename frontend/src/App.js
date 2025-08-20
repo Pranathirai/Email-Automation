@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import './App.css';
 
@@ -15,11 +15,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
 import { Textarea } from './components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/select';
+import { Checkbox } from './components/ui/checkbox';
 import { toast, useToast } from './hooks/use-toast';
 import { Toaster } from './components/ui/toaster';
 
 // Icons
-import { Upload, Users, Mail, BarChart3, Plus, Search, Filter, Edit, Trash2, FileSpreadsheet } from 'lucide-react';
+import { Upload, Users, Mail, BarChart3, Plus, Search, Filter, Edit, Trash2, FileSpreadsheet, Eye, Play, Pause, Settings, ArrowLeft, Send, Clock, TrendingUp } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -30,7 +31,9 @@ const Dashboard = () => {
     total_contacts: 0,
     total_campaigns: 0,
     recent_contacts: 0,
-    active_campaigns: 0
+    active_campaigns: 0,
+    total_emails_sent: 0,
+    overall_open_rate: 0
   });
 
   useEffect(() => {
@@ -82,25 +85,25 @@ const Dashboard = () => {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Open Rate</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Emails Sent</CardTitle>
+            <Send className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0%</div>
+            <div className="text-2xl font-bold">{stats.total_emails_sent}</div>
             <p className="text-xs text-muted-foreground">
-              No campaigns sent yet
+              Across all campaigns
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Response Rate</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Open Rate</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0%</div>
+            <div className="text-2xl font-bold">{stats.overall_open_rate}%</div>
             <p className="text-xs text-muted-foreground">
-              No responses yet
+              Overall performance
             </p>
           </CardContent>
         </Card>
@@ -438,25 +441,449 @@ const Contacts = () => {
   );
 };
 
-// Campaigns Component (Placeholder)
+// Campaign List Component
 const Campaigns = () => {
+  const [campaigns, setCampaigns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
+
+  const fetchCampaigns = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${API}/campaigns`);
+      setCampaigns(response.data);
+    } catch (error) {
+      console.error('Error fetching campaigns:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch campaigns",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      draft: { variant: "secondary", label: "Draft" },
+      scheduled: { variant: "default", label: "Scheduled" },
+      sending: { variant: "default", label: "Sending" },
+      sent: { variant: "outline", label: "Sent" },
+      paused: { variant: "secondary", label: "Paused" }
+    };
+    
+    const config = statusConfig[status] || statusConfig.draft;
+    return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Campaigns</h2>
-        <p className="text-muted-foreground">
-          Create and manage email campaigns
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Campaigns</h2>
+          <p className="text-muted-foreground">
+            Create and manage email campaigns
+          </p>
+        </div>
+        <Button onClick={() => navigate('/campaigns/new')}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Campaign
+        </Button>
       </div>
+
       <Card>
-        <CardContent className="pt-6">
-          <div className="text-center py-8">
-            <Mail className="mx-auto h-12 w-12 text-muted-foreground" />
-            <h3 className="mt-4 text-lg font-medium">Campaign management coming soon</h3>
-            <p className="text-muted-foreground">Create powerful email sequences and campaigns</p>
-          </div>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Contacts</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    Loading campaigns...
+                  </TableCell>
+                </TableRow>
+              ) : campaigns.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    <div className="flex flex-col items-center gap-2">
+                      <Mail className="h-8 w-8 text-muted-foreground" />
+                      <p className="text-lg font-medium">No campaigns yet</p>
+                      <p className="text-muted-foreground">Create your first email campaign to get started</p>
+                      <Button className="mt-2" onClick={() => navigate('/campaigns/new')}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Create Campaign
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                campaigns.map((campaign) => (
+                  <TableRow key={campaign.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{campaign.name}</p>
+                        <p className="text-sm text-muted-foreground">{campaign.subject}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>{getStatusBadge(campaign.status)}</TableCell>
+                    <TableCell>{campaign.contact_ids?.length || 0}</TableCell>
+                    <TableCell>{new Date(campaign.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => navigate(`/campaigns/${campaign.id}`)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => navigate(`/campaigns/${campaign.id}/edit`)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
+    </div>
+  );
+};
+
+// Campaign Form Component
+const CampaignForm = ({ isEdit = false }) => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(isEdit);
+  const [saving, setSaving] = useState(false);
+  const [contacts, setContacts] = useState([]);
+  const [selectedContacts, setSelectedContacts] = useState([]);
+  const [campaign, setCampaign] = useState({
+    name: '',
+    description: '',
+    subject: '',
+    content: '',
+    daily_limit: 50,
+    delay_between_emails: 300,
+    personalization_enabled: true
+  });
+
+  useEffect(() => {
+    fetchContacts();
+    if (isEdit && id) {
+      fetchCampaign();
+    }
+  }, [isEdit, id]);
+
+  const fetchContacts = async () => {
+    try {
+      const response = await axios.get(`${API}/contacts`);
+      setContacts(response.data);
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+    }
+  };
+
+  const fetchCampaign = async () => {
+    try {
+      const response = await axios.get(`${API}/campaigns/${id}`);
+      const campaignData = response.data;
+      setCampaign(campaignData);
+      setSelectedContacts(campaignData.contact_ids || []);
+    } catch (error) {
+      console.error('Error fetching campaign:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch campaign",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!campaign.name || !campaign.subject || !campaign.content) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const campaignData = {
+        ...campaign,
+        contact_ids: selectedContacts
+      };
+
+      if (isEdit) {
+        await axios.put(`${API}/campaigns/${id}`, campaignData);
+        toast({
+          title: "Success",
+          description: "Campaign updated successfully"
+        });
+      } else {
+        await axios.post(`${API}/campaigns`, campaignData);
+        toast({
+          title: "Success", 
+          description: "Campaign created successfully"
+        });
+      }
+      
+      navigate('/campaigns');
+    } catch (error) {
+      console.error('Error saving campaign:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to save campaign",
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleContactToggle = (contactId) => {
+    setSelectedContacts(prev => 
+      prev.includes(contactId) 
+        ? prev.filter(id => id !== contactId)
+        : [...prev, contactId]
+    );
+  };
+
+  const insertPersonalizationTag = (tag) => {
+    const textarea = document.getElementById('campaign-content');
+    const cursorPos = textarea.selectionStart;
+    const textBefore = campaign.content.substring(0, cursorPos);
+    const textAfter = campaign.content.substring(textarea.selectionEnd);
+    
+    setCampaign({
+      ...campaign,
+      content: textBefore + tag + textAfter
+    });
+    
+    // Set cursor position after tag
+    setTimeout(() => {
+      textarea.selectionStart = textarea.selectionEnd = cursorPos + tag.length;
+      textarea.focus();
+    }, 10);
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={() => navigate('/campaigns')}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Loading...</h2>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" onClick={() => navigate('/campaigns')}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">
+            {isEdit ? 'Edit Campaign' : 'New Campaign'}
+          </h2>
+          <p className="text-muted-foreground">
+            Create personalized email campaigns for your contacts
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-8 md:grid-cols-3">
+        <div className="md:col-span-2 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Campaign Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Campaign Name *</Label>
+                <Input
+                  id="name"
+                  value={campaign.name}
+                  onChange={(e) => setCampaign({...campaign, name: e.target.value})}
+                  placeholder="e.g., Product Launch Outreach"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={campaign.description}
+                  onChange={(e) => setCampaign({...campaign, description: e.target.value})}
+                  placeholder="Brief description of this campaign..."
+                  rows={2}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="subject">Email Subject *</Label>
+                <Input
+                  id="subject"
+                  value={campaign.subject}
+                  onChange={(e) => setCampaign({...campaign, subject: e.target.value})}
+                  placeholder="e.g., Quick question about {{company}}"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Email Content</CardTitle>
+              <CardDescription>
+                Use personalization tags to customize emails for each contact
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  '{{first_name}}',
+                  '{{last_name}}', 
+                  '{{full_name}}',
+                  '{{company}}',
+                  '{{email}}'
+                ].map(tag => (
+                  <Button
+                    key={tag}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => insertPersonalizationTag(tag)}
+                    type="button"
+                  >
+                    {tag}
+                  </Button>
+                ))}
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="campaign-content">Email Content *</Label>
+                <Textarea
+                  id="campaign-content"
+                  value={campaign.content}
+                  onChange={(e) => setCampaign({...campaign, content: e.target.value})}
+                  placeholder="Hi {{first_name}},&#10;&#10;I hope this email finds you well..."
+                  rows={12}
+                  className="font-mono text-sm"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Sending Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="daily_limit">Daily Sending Limit</Label>
+                <Input
+                  id="daily_limit"
+                  type="number"
+                  min="1"
+                  max="1000"
+                  value={campaign.daily_limit}
+                  onChange={(e) => setCampaign({...campaign, daily_limit: parseInt(e.target.value) || 50})}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="delay">Delay Between Emails (seconds)</Label>
+                <Input
+                  id="delay"
+                  type="number"
+                  min="60"
+                  max="3600"
+                  value={campaign.delay_between_emails}
+                  onChange={(e) => setCampaign({...campaign, delay_between_emails: parseInt(e.target.value) || 300})}
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="personalization"
+                  checked={campaign.personalization_enabled}
+                  onCheckedChange={(checked) => setCampaign({...campaign, personalization_enabled: checked})}
+                />
+                <Label htmlFor="personalization">Enable personalization tags</Label>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Select Contacts</CardTitle>
+              <CardDescription>
+                Choose who will receive this campaign
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {contacts.map((contact) => (
+                  <div key={contact.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={contact.id}
+                      checked={selectedContacts.includes(contact.id)}
+                      onCheckedChange={() => handleContactToggle(contact.id)}
+                    />
+                    <Label htmlFor={contact.id} className="flex-1 cursor-pointer">
+                      <div className="text-sm">
+                        <p className="font-medium">{contact.first_name} {contact.last_name}</p>
+                        <p className="text-muted-foreground">{contact.email}</p>
+                        {contact.company && (
+                          <p className="text-xs text-muted-foreground">{contact.company}</p>
+                        )}
+                      </div>
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              {selectedContacts.length > 0 && (
+                <div className="mt-4 p-3 bg-muted rounded-md">
+                  <p className="text-sm font-medium">
+                    {selectedContacts.length} contact{selectedContacts.length > 1 ? 's' : ''} selected
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="flex gap-2">
+            <Button onClick={handleSave} disabled={saving} className="flex-1">
+              {saving ? 'Saving...' : (isEdit ? 'Update Campaign' : 'Create Campaign')}
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -517,6 +944,8 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/contacts" element={<Contacts />} />
             <Route path="/campaigns" element={<Campaigns />} />
+            <Route path="/campaigns/new" element={<CampaignForm />} />
+            <Route path="/campaigns/:id/edit" element={<CampaignForm isEdit={true} />} />
           </Routes>
         </Layout>
       </BrowserRouter>
