@@ -828,32 +828,55 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
         )
         return success, response
 
-    # Campaign Testing Methods
-    def test_create_campaign(self, name, subject, content, contact_ids=None, description=None):
-        """Create a campaign"""
+    # Enhanced Campaign Testing Methods with A/B Testing and Variables
+    def test_create_enhanced_campaign(self, name, steps, contact_ids=None, smtp_config_ids=None, description=None):
+        """Create an enhanced campaign with A/B testing and variables"""
         campaign_data = {
             "name": name,
-            "subject": subject,
-            "content": content,
+            "steps": steps,
             "contact_ids": contact_ids or [],
-            "daily_limit": 50,
-            "delay_between_emails": 300,
-            "personalization_enabled": True
+            "smtp_config_ids": smtp_config_ids or [],
+            "daily_limit_per_inbox": 200,
+            "delay_min_seconds": 300,
+            "delay_max_seconds": 1800,
+            "personalization_enabled": True,
+            "a_b_testing_enabled": True,
+            "timezone": "UTC"
         }
         if description:
             campaign_data["description"] = description
 
         success, response = self.run_test(
-            f"Create Campaign - {name}",
+            f"Create Enhanced Campaign - {name}",
             "POST",
             "campaigns",
             200,
-            data=campaign_data
+            data=campaign_data,
+            auth_required=True
         )
         if success and 'id' in response:
             self.created_campaign_ids.append(response['id'])
+            print(f"   Campaign created with {len(steps)} steps")
+            for i, step in enumerate(steps):
+                print(f"     Step {i+1}: {len(step.get('variations', []))} variations")
             return response['id']
         return None
+
+    def test_create_campaign(self, name, subject, content, contact_ids=None, description=None):
+        """Create a legacy campaign (for backward compatibility)"""
+        # Convert to new format with single step and variation
+        steps = [{
+            "sequence_order": 1,
+            "delay_days": 0,
+            "variations": [{
+                "name": "Default",
+                "subject": subject,
+                "content": content,
+                "weight": 100
+            }]
+        }]
+        
+        return self.test_create_enhanced_campaign(name, steps, contact_ids, description=description)
 
     def test_get_campaigns(self):
         """Get all campaigns"""
