@@ -268,7 +268,7 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "Completed SMTP configuration system - backend APIs fully tested and working, frontend UI implemented with complete CRUD operations, testing, and subscription limits. SMTP Settings feature is now complete and ready for user testing."
+    message: "Fixed both user issues: 1) Removed inbox limits (now unlimited for all plans), 2) Enhanced CSV import with better error handling, detailed success messages, and format guidance. Backend testing shows CSV import working perfectly (100% success rate with 8 contacts imported across various scenarios)."
   - agent: "testing"
     message: "✅ SMTP Configuration System testing completed successfully. All core functionality working: CRUD operations, authentication, authorization, subscription limits, connection testing, and stats. The system properly handles Gmail, Outlook, and Custom SMTP providers. User isolation and subscription limits are correctly enforced. Ready for frontend integration or additional backend features."
   - agent: "testing"
