@@ -143,15 +143,18 @@ backend:
   
   - task: "SMTP Configuration System"
     implemented: true
-    working: "NA"
+    working: true
     file: "server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Added complete SMTP configuration models, CRUD APIs, test functionality, and email sending infrastructure. Supports Gmail, Outlook, and Custom SMTP providers."
+      - working: true
+        agent: "testing"
+        comment: "✅ SMTP Configuration System fully tested and working. All CRUD operations (POST/GET/PUT/DELETE /api/smtp-configs) working correctly. Test endpoint (/api/smtp-configs/{id}/test) properly handles connection testing with appropriate error messages for invalid credentials. Stats endpoint (/api/smtp-configs/{id}/stats) returns correct usage statistics. User isolation working - users can only access their own configs. Subscription limits properly enforced (free plan limited to 1 inbox). Authentication required for all endpoints. Supports Gmail, Outlook, and Custom SMTP providers with proper default settings."
 
   - task: "Database Schema & Models"
     implemented: true
