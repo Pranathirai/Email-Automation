@@ -581,7 +581,8 @@ class MailerProAPITester:
             "Get All Contacts",
             "GET",
             "contacts",
-            200
+            200,
+            auth_required=True
         )
         if success and isinstance(response, list):
             print(f"   Found {len(response)} contacts")
