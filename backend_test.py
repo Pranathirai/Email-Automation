@@ -820,7 +820,8 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
             "POST",
             "contacts/upload-csv",
             400,
-            files=files
+            files=files,
+            auth_required=True
         )
         return success
 
