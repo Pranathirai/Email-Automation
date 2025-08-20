@@ -967,6 +967,62 @@ const CampaignForm = ({ isEdit = false }) => {
     }
   };
 
+  const handleSaveAndSend = async () => {
+    setSaving(true);
+    try {
+      const campaignData = {
+        ...campaign,
+        contact_ids: selectedContacts
+      };
+
+      const response = await axios.post(`${API}/campaigns`, campaignData);
+      const campaignId = response.data.id;
+
+      // Send the campaign immediately
+      await handleSendCampaign(campaignId);
+      
+    } catch (error) {
+      console.error('Error creating and sending campaign:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to create and send campaign",
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSendCampaign = async (campaignId = id) => {
+    setSending(true);
+    try {
+      const response = await axios.post(`${API}/campaigns/${campaignId}/send`);
+      
+      if (response.data.success) {
+        toast({
+          title: "Success",
+          description: `Campaign scheduled! ${response.data.emails_scheduled} emails will be sent.`,
+        });
+        navigate('/campaigns');
+      } else {
+        toast({
+          title: "Error",
+          description: response.data.error || "Failed to send campaign",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error sending campaign:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to send campaign",
+        variant: "destructive"
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!campaign.name || !campaign.subject || !campaign.content) {
       toast({
