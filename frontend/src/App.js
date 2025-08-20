@@ -1310,6 +1310,7 @@ const Layout = ({ children }) => {
     { name: 'Dashboard', href: '/', icon: BarChart3 },
     { name: 'Contacts', href: '/contacts', icon: Users },
     { name: 'Campaigns', href: '/campaigns', icon: Mail },
+    { name: 'SMTP Settings', href: '/smtp', icon: Settings },
   ];
 
   return (
