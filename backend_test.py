@@ -1281,7 +1281,7 @@ def main():
         
         if success_reg and success_login:
             # Test dashboard stats (commonly accessed)
-            success_dashboard, dashboard_response = tester.test_dashboard_stats()
+            success_dashboard = tester.test_dashboard_stats()
             
             # Test subscription plans (commonly accessed)
             success_plans, plans_response = tester.run_test(
