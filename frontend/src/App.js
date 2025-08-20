@@ -607,6 +607,21 @@ const Campaigns = () => {
                     <TableCell>{new Date(campaign.created_at).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
+                        {campaign.status === 'draft' && (
+                          <Button variant="outline" size="sm" onClick={() => handleSendCampaign(campaign.id)}>
+                            <Play className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {campaign.status === 'scheduled' && (
+                          <Button variant="outline" size="sm" onClick={() => handlePauseCampaign(campaign.id)}>
+                            <Pause className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {campaign.status === 'paused' && (
+                          <Button variant="outline" size="sm" onClick={() => handleResumeCampaign(campaign.id)}>
+                            <Play className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="sm" onClick={() => navigate(`/campaigns/${campaign.id}`)}>
                           <Eye className="h-4 w-4" />
                         </Button>
