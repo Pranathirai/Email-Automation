@@ -325,7 +325,7 @@ def decode_jwt_token(token: str):
         return payload
     except jwt.ExpiredSignatureError:
         return None
-    except jwt.JWTError:
+    except jwt.PyJWTError:
         return None
 
 async def get_current_user(request: Request) -> User:
