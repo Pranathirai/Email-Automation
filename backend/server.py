@@ -577,6 +577,141 @@ async def send_email_via_smtp(smtp_config: SMTPConfig, to_email: str, subject: s
     except Exception as e:
         return {"success": False, "message": f"Email sending failed: {str(e)}"}
 
+# Campaign Helper Functions
+def personalize_template(template: str, contact: dict, custom_variables: dict = None) -> str:
+    """Replace variables in template with contact data"""
+    import re
+    
+    # Default available variables
+    variables = {
+        "first_name": contact.get("first_name", ""),
+        "last_name": contact.get("last_name", ""),
+        "full_name": f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip(),
+        "email": contact.get("email", ""),
+        "company": contact.get("company", ""),
+        "phone": contact.get("phone", ""),
+    }
+    
+    # Add custom variables if provided
+    if custom_variables:
+        variables.update(custom_variables)
+    
+    # Replace variables in template
+    def replace_variable(match):
+        var_name = match.group(1).lower()
+        return variables.get(var_name, f"{{{{{var_name}}}}}")  # Keep original if not found
+    
+    # Find all {{variable}} patterns and replace them
+    personalized = re.sub(r'\{\{([^}]+)\}\}', replace_variable, template)
+    
+    # Clean up empty variables (optional)
+    personalized = re.sub(r'\s+', ' ', personalized)  # Remove extra spaces
+    
+    return personalized
+
+def extract_variables_from_template(template: str) -> List[str]:
+    """Extract all variable names from a template"""
+    import re
+    variables = re.findall(r'\{\{([^}]+)\}\}', template)
+    return list(set([var.strip().lower() for var in variables]))
+
+def validate_campaign_variables(campaign: Campaign, contacts: List[dict]) -> dict:
+    """Validate that all variables in campaign can be filled by contact data"""
+    issues = []
+    missing_variables = set()
+    
+    # Extract variables from all steps and variations
+    all_templates = []
+    for step in campaign.steps:
+        for variation in step.variations:
+            all_templates.extend([variation.subject, variation.content])
+    
+    # Get all required variables
+    required_variables = set()
+    for template in all_templates:
+        required_variables.update(extract_variables_from_template(template))
+    
+    # Check each contact
+    available_fields = ["first_name", "last_name", "email", "company", "phone"]
+    for contact in contacts:
+        for var in required_variables:
+            if var not in available_fields and var not in campaign.custom_variables:
+                missing_variables.add(var)
+    
+    if missing_variables:
+        issues.append(f"Missing variables: {', '.join(missing_variables)}")
+    
+    return {
+        "valid": len(issues) == 0,
+        "issues": issues,
+        "required_variables": list(required_variables),
+        "missing_variables": list(missing_variables)
+    }
+
+async def select_campaign_variation(step: CampaignStep, contact_id: str) -> CampaignVariation:
+    """Select which variation to send based on A/B testing weights"""
+    import random
+    
+    if not step.variations:
+        return None
+    
+    # Simple A/B testing: use contact_id hash for consistent assignment
+    contact_hash = hash(f"{step.id}_{contact_id}")
+    random.seed(contact_hash)
+    
+    # Calculate cumulative weights
+    total_weight = sum(var.weight for var in step.variations)
+    if total_weight == 0:
+        return step.variations[0]  # Return first if no weights
+    
+    # Select variation based on weight
+    rand_num = random.randint(1, total_weight)
+    cumulative_weight = 0
+    
+    for variation in step.variations:
+        cumulative_weight += variation.weight
+        if rand_num <= cumulative_weight:
+            return variation
+    
+    return step.variations[-1]  # Fallback to last variation
+
+async def get_next_smtp_config(smtp_config_ids: List[str], user_id: str) -> SMTPConfig:
+    """Get next SMTP config for rotation (round-robin with daily limits)"""
+    
+    if not smtp_config_ids:
+        return None
+    
+    # Get all SMTP configs for user
+    configs_cursor = db.smtp_configs.find({
+        "id": {"$in": smtp_config_ids},
+        "user_id": user_id,
+        "is_active": True
+    })
+    configs = await configs_cursor.to_list(length=None)
+    
+    if not configs:
+        return None
+    
+    # Filter configs that haven't reached daily limit
+    available_configs = []
+    for config in configs:
+        daily_sent = config.get("daily_sent_count", 0)
+        daily_limit = config.get("daily_limit", 300)
+        if daily_sent < daily_limit:
+            available_configs.append(config)
+    
+    if not available_configs:
+        return None  # All configs reached daily limit
+    
+    # Simple round-robin: return config with lowest sent count
+    selected_config = min(available_configs, key=lambda c: c.get("daily_sent_count", 0))
+    return SMTPConfig(**parse_from_mongo(selected_config))
+
+def calculate_random_delay(min_seconds: int, max_seconds: int) -> int:
+    """Calculate random delay between min and max for human-like behavior"""
+    import random
+    return random.randint(min_seconds, max_seconds)
+
 # Authentication Routes
 @api_router.post("/auth/register", response_model=UserResponse)
 async def register_user(user_data: UserCreate):
