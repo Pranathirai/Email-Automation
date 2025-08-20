@@ -1153,7 +1153,8 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
         print(f"\n🧹 Cleaning up {len(self.created_campaign_ids)} created campaigns...")
         for campaign_id in self.created_campaign_ids:
             try:
-                response = requests.delete(f"{self.api_url}/campaigns/{campaign_id}")
+                headers = {'Authorization': f'Bearer {self.auth_token}'} if self.auth_token else {}
+                response = requests.delete(f"{self.api_url}/campaigns/{campaign_id}", headers=headers)
                 if response.status_code == 200:
                     print(f"   ✅ Deleted campaign {campaign_id}")
                 else:
@@ -1166,7 +1167,8 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
         print(f"\n🧹 Cleaning up {len(self.created_contact_ids)} created contacts...")
         for contact_id in self.created_contact_ids:
             try:
-                response = requests.delete(f"{self.api_url}/contacts/{contact_id}")
+                headers = {'Authorization': f'Bearer {self.auth_token}'} if self.auth_token else {}
+                response = requests.delete(f"{self.api_url}/contacts/{contact_id}", headers=headers)
                 if response.status_code == 200:
                     print(f"   ✅ Deleted contact {contact_id}")
                 else:
