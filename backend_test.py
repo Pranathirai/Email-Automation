@@ -602,7 +602,7 @@ def main():
         print("\n" + "=" * 25 + " AUTHENTICATION TESTS " + "=" * 25)
         
         # Test 2: User Registration
-        test_email = f"testuser_{datetime.now().strftime('%Y%m%d_%H%M%S')}@mailerpro.test"
+        test_email = f"testuser_{datetime.now().strftime('%Y%m%d_%H%M%S')}@example.com"
         test_password = "SecurePassword123!"
         test_name = "Test User"
         
