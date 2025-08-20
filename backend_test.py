@@ -722,7 +722,7 @@ def main():
         # Subscription Limits Test
         print("\n" + "=" * 25 + " SUBSCRIPTION LIMITS TEST " + "=" * 25)
         
-        # Test 15: Try to create more SMTP configs than allowed (free plan allows 1 inbox)
+        # Test 17: Try to create more SMTP configs than allowed (free plan allows 1 inbox)
         # First, let's check current plan limits
         success, user_info = tester.test_get_current_user()
         if success:
@@ -734,10 +734,10 @@ def main():
                 extra_config_id = tester.test_create_smtp_config(
                     name=f"Extra SMTP Config {i+1}",
                     provider="custom",
-                    email=f"extra{i+1}@test.com",
-                    smtp_host="smtp.test.com",
+                    email=f"extra{i+1}@example.com",
+                    smtp_host="smtp.example.com",
                     smtp_port=587,
-                    smtp_username=f"extra{i+1}@test.com",
+                    smtp_username=f"extra{i+1}@example.com",
                     smtp_password="password123"
                 )
                 if not extra_config_id:
