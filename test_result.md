@@ -119,6 +119,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ Authentication system fully working. User registration (/api/auth/register) creates users successfully with proper password hashing. Login (/api/auth/login) returns valid JWT tokens. Protected endpoints properly validate Bearer tokens. Current user endpoint (/api/auth/me) returns correct user information. JWT tokens are properly formatted and contain user context."
+      - working: true
+        agent: "testing"
+        comment: "✅ JWT Authentication System FIXED and fully tested (26/26 tests passed). CRITICAL FIX: Fixed 'invalid token' error by correcting JWT exception handling (jwt.JWTError -> jwt.PyJWTError). Comprehensive testing confirms: 1) User registration/login working correctly, 2) JWT tokens properly formatted and validated, 3) Protected endpoints correctly require authentication, 4) Invalid tokens properly rejected with 401 status (not 500 errors), 5) Authorization header format correctly enforced, 6) Token reuse and persistence working, 7) CSV upload authentication working, 8) SMTP configuration authentication working. The 'invalid token' error users were experiencing was caused by a 500 Internal Server Error due to incorrect JWT exception handling, now resolved."
   
   - task: "Stripe Subscription Integration"
     implemented: true
