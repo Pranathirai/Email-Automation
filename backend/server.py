@@ -1325,6 +1325,58 @@ async def get_campaign_analytics(campaign_id: str, current_user: User = Depends(
         "variations_count": sum(len(step.get("variations", [])) for step in campaign.get("steps", []))
     }
 
+# Template Management Routes
+@api_router.get("/templates/variables")
+async def get_available_variables(current_user: User = Depends(get_current_user)):
+    """Get list of available variables for templates"""
+    
+    # Get sample contact to show available fields
+    sample_contact = await db.contacts.find_one({"user_id": current_user.id})
+    
+    variables = {
+        "standard": {
+            "first_name": {"description": "Contact's first name", "example": "John"},
+            "last_name": {"description": "Contact's last name", "example": "Doe"},
+            "full_name": {"description": "Full name (first + last)", "example": "John Doe"},
+            "email": {"description": "Contact's email address", "example": "john@example.com"},
+            "company": {"description": "Contact's company", "example": "Acme Corp"},
+            "phone": {"description": "Contact's phone number", "example": "555-1234"}
+        },
+        "usage": "Use variables in templates like: Hello {{first_name}}, Welcome to {{company}}!",
+        "sample_data": {}
+    }
+    
+    if sample_contact:
+        variables["sample_data"] = {
+            "first_name": sample_contact.get("first_name", "John"),
+            "last_name": sample_contact.get("last_name", "Doe"),
+            "full_name": f"{sample_contact.get('first_name', 'John')} {sample_contact.get('last_name', 'Doe')}",
+            "email": sample_contact.get("email", "john@example.com"),
+            "company": sample_contact.get("company", "Acme Corp"),
+            "phone": sample_contact.get("phone", "555-1234")
+        }
+    
+    return variables
+
+@api_router.post("/templates/validate")
+async def validate_template(template: str = "", current_user: User = Depends(get_current_user)):
+    """Validate a template and show which variables are used"""
+    
+    variables_found = extract_variables_from_template(template)
+    standard_variables = ["first_name", "last_name", "full_name", "email", "company", "phone"]
+    
+    valid_variables = [var for var in variables_found if var in standard_variables]
+    invalid_variables = [var for var in variables_found if var not in standard_variables]
+    
+    return {
+        "template": template,
+        "is_valid": len(invalid_variables) == 0,
+        "variables_found": variables_found,
+        "valid_variables": valid_variables,
+        "invalid_variables": invalid_variables,
+        "suggestions": [f"Use {{{{{var}}}}} for {var.replace('_', ' ')}" for var in standard_variables if var not in variables_found]
+    }
+
 # Email Tracking Routes
 @api_router.get("/track/pixel/{tracking_pixel_id}")
 async def track_email_open(tracking_pixel_id: str):
