@@ -686,7 +686,15 @@ def main():
         if gmail_config_id:
             tester.test_smtp_config_stats(gmail_config_id)
 
-        # Test 13: Test unauthorized access (should fail)
+        # Test 13: Update SMTP config (if we have one)
+        if gmail_config_id:
+            tester.test_update_smtp_config(gmail_config_id, {
+                "name": "Updated Gmail Account",
+                "daily_limit": 600,
+                "is_active": True
+            })
+
+        # Test 14: Test unauthorized access (should fail)
         if gmail_config_id:
             # Temporarily remove auth token
             temp_token = tester.auth_token
@@ -694,7 +702,17 @@ def main():
             tester.test_unauthorized_smtp_access(gmail_config_id)
             tester.auth_token = temp_token
 
-        # Test 14: Delete SMTP config
+        # Test 15: Test subscription plans endpoint
+        success, response = tester.run_test(
+            "Get Subscription Plans",
+            "GET",
+            "subscription/plans",
+            200
+        )
+        if success:
+            print(f"   Available plans: {list(response.get('plans', {}).keys())}")
+
+        # Test 16: Delete SMTP config
         if custom_config_id:
             tester.test_delete_smtp_config(custom_config_id)
             # Remove from cleanup list since we deleted it
