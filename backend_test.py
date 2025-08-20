@@ -552,7 +552,8 @@ class MailerProAPITester:
             "POST",
             "contacts",
             200,
-            data=contact_data
+            data=contact_data,
+            auth_required=True
         )
         if success and 'id' in response:
             self.created_contact_ids.append(response['id'])
