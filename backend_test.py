@@ -950,9 +950,9 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
             for field in required_fields:
                 if field not in response:
                     print(f"❌ Missing field in enhanced stats: {field}")
-                    return False
+                    return False, response
             print(f"   Enhanced Stats: {response}")
-        return success
+        return success, response
 
     def cleanup_created_campaigns(self):
         """Clean up campaigns created during testing"""
