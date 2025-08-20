@@ -66,6 +66,209 @@ class MailerProAPITester:
             print(f"❌ Failed - Error: {str(e)}")
             return False, {}
 
+    # Authentication Methods
+    def test_user_registration(self, email, password, full_name):
+        """Test user registration"""
+        user_data = {
+            "email": email,
+            "password": password,
+            "full_name": full_name
+        }
+        success, response = self.run_test(
+            f"User Registration - {email}",
+            "POST",
+            "auth/register",
+            200,
+            data=user_data
+        )
+        if success:
+            self.current_user = response
+            print(f"   Registered user: {response.get('email')} (ID: {response.get('id')})")
+        return success, response
+
+    def test_user_login(self, email, password):
+        """Test user login and store auth token"""
+        login_data = {
+            "email": email,
+            "password": password
+        }
+        success, response = self.run_test(
+            f"User Login - {email}",
+            "POST",
+            "auth/login",
+            200,
+            data=login_data
+        )
+        if success and 'access_token' in response:
+            self.auth_token = response['access_token']
+            self.current_user = response.get('user', {})
+            print(f"   Login successful, token stored")
+            print(f"   User: {self.current_user.get('email')} (Plan: {self.current_user.get('subscription_plan')})")
+        return success, response
+
+    def test_get_current_user(self):
+        """Test getting current user info"""
+        success, response = self.run_test(
+            "Get Current User Info",
+            "GET",
+            "auth/me",
+            200,
+            auth_required=True
+        )
+        return success, response
+
+    # SMTP Configuration Methods
+    def test_create_smtp_config(self, name, provider, email, smtp_host=None, smtp_port=None, 
+                               smtp_username=None, smtp_password=None, use_tls=True, daily_limit=300):
+        """Create an SMTP configuration"""
+        smtp_data = {
+            "name": name,
+            "provider": provider,
+            "email": email,
+            "use_tls": use_tls,
+            "daily_limit": daily_limit
+        }
+        
+        if smtp_host:
+            smtp_data["smtp_host"] = smtp_host
+        if smtp_port:
+            smtp_data["smtp_port"] = smtp_port
+        if smtp_username:
+            smtp_data["smtp_username"] = smtp_username
+        if smtp_password:
+            smtp_data["smtp_password"] = smtp_password
+
+        success, response = self.run_test(
+            f"Create SMTP Config - {name} ({provider})",
+            "POST",
+            "smtp-configs",
+            200,
+            data=smtp_data,
+            auth_required=True
+        )
+        if success and 'id' in response:
+            self.created_smtp_config_ids.append(response['id'])
+            print(f"   SMTP Config created: {response.get('name')} (Provider: {response.get('provider')})")
+            return response['id']
+        return None
+
+    def test_get_smtp_configs(self):
+        """Get all SMTP configurations for current user"""
+        success, response = self.run_test(
+            "Get All SMTP Configs",
+            "GET",
+            "smtp-configs",
+            200,
+            auth_required=True
+        )
+        if success and isinstance(response, list):
+            print(f"   Found {len(response)} SMTP configurations")
+            for config in response:
+                print(f"     - {config.get('name')} ({config.get('provider')}) - Active: {config.get('is_active')}")
+        return success, response
+
+    def test_get_single_smtp_config(self, config_id):
+        """Get a specific SMTP configuration"""
+        success, response = self.run_test(
+            f"Get Single SMTP Config",
+            "GET",
+            f"smtp-configs/{config_id}",
+            200,
+            auth_required=True
+        )
+        if success:
+            print(f"   Config: {response.get('name')} - {response.get('email')}")
+            print(f"   Host: {response.get('smtp_host')}:{response.get('smtp_port')}")
+            print(f"   Verified: {response.get('is_verified')}")
+        return success, response
+
+    def test_update_smtp_config(self, config_id, update_data):
+        """Update an SMTP configuration"""
+        success, response = self.run_test(
+            f"Update SMTP Config",
+            "PUT",
+            f"smtp-configs/{config_id}",
+            200,
+            data=update_data,
+            auth_required=True
+        )
+        if success:
+            print(f"   Updated config: {response.get('name')}")
+        return success, response
+
+    def test_delete_smtp_config(self, config_id):
+        """Delete an SMTP configuration"""
+        success, response = self.run_test(
+            f"Delete SMTP Config",
+            "DELETE",
+            f"smtp-configs/{config_id}",
+            200,
+            auth_required=True
+        )
+        return success
+
+    def test_smtp_connection_test(self, config_id, test_email="test@example.com", 
+                                 subject="Test Email", content="This is a test email"):
+        """Test SMTP connection by sending test email"""
+        test_data = {
+            "test_email": test_email,
+            "subject": subject,
+            "content": content
+        }
+        success, response = self.run_test(
+            f"Test SMTP Connection",
+            "POST",
+            f"smtp-configs/{config_id}/test",
+            200,
+            data=test_data,
+            auth_required=True
+        )
+        if success:
+            print(f"   Test result: {response.get('message')}")
+            print(f"   Success: {response.get('success')}")
+        return success, response
+
+    def test_smtp_config_stats(self, config_id):
+        """Get SMTP configuration statistics"""
+        success, response = self.run_test(
+            f"Get SMTP Config Stats",
+            "GET",
+            f"smtp-configs/{config_id}/stats",
+            200,
+            auth_required=True
+        )
+        if success:
+            print(f"   Daily sent: {response.get('daily_sent_count')}/{response.get('daily_limit')}")
+            print(f"   Remaining today: {response.get('remaining_today')}")
+            print(f"   Status: {response.get('status')}")
+            print(f"   Verified: {response.get('is_verified')}")
+        return success, response
+
+    def test_unauthorized_smtp_access(self, config_id):
+        """Test accessing SMTP config without authentication (should fail)"""
+        success, response = self.run_test(
+            "Unauthorized SMTP Access (should fail)",
+            "GET",
+            f"smtp-configs/{config_id}",
+            401,
+            auth_required=False
+        )
+        return success
+
+    def cleanup_created_smtp_configs(self):
+        """Clean up SMTP configs created during testing"""
+        print(f"\n🧹 Cleaning up {len(self.created_smtp_config_ids)} created SMTP configs...")
+        for config_id in self.created_smtp_config_ids:
+            try:
+                headers = {'Authorization': f'Bearer {self.auth_token}'} if self.auth_token else {}
+                response = requests.delete(f"{self.api_url}/smtp-configs/{config_id}", headers=headers)
+                if response.status_code == 200:
+                    print(f"   ✅ Deleted SMTP config {config_id}")
+                else:
+                    print(f"   ❌ Failed to delete SMTP config {config_id}")
+            except Exception as e:
+                print(f"   ❌ Error deleting SMTP config {config_id}: {str(e)}")
+
     def test_root_endpoint(self):
         """Test root API endpoint"""
         success, response = self.run_test(
