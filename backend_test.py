@@ -940,22 +940,51 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
         return success
 
     def test_campaign_analytics(self, campaign_id):
-        """Test campaign analytics endpoint"""
+        """Test enhanced campaign analytics endpoint with A/B breakdown"""
         success, response = self.run_test(
-            f"Campaign Analytics",
+            f"Enhanced Campaign Analytics",
             "GET",
             f"campaigns/{campaign_id}/analytics",
-            200
+            200,
+            auth_required=True
         )
         if success:
-            required_fields = ['campaign_id', 'campaign_name', 'total_emails', 'sent_emails', 
-                             'delivered_emails', 'opened_emails', 'clicked_emails', 'bounced_emails', 
-                             'failed_emails', 'open_rate', 'click_rate', 'bounce_rate']
-            for field in required_fields:
-                if field not in response:
-                    print(f"❌ Missing field in analytics: {field}")
+            # Check overall analytics structure
+            if 'overall' not in response:
+                print(f"❌ Missing 'overall' section in analytics")
+                return False
+            
+            overall = response['overall']
+            required_overall_fields = ['campaign_id', 'campaign_name', 'total_emails', 
+                                     'delivered_emails', 'opened_emails', 'clicked_emails', 
+                                     'replied_emails', 'bounced_emails', 'delivery_rate', 
+                                     'open_rate', 'click_rate', 'reply_rate', 'bounce_rate']
+            
+            for field in required_overall_fields:
+                if field not in overall:
+                    print(f"❌ Missing field in overall analytics: {field}")
                     return False
-            print(f"   Analytics: {response}")
+            
+            # Check A/B testing breakdown
+            if 'ab_testing' not in response:
+                print(f"❌ Missing 'ab_testing' section in analytics")
+                return False
+            
+            ab_testing = response['ab_testing']
+            if isinstance(ab_testing, list):
+                print(f"   ✅ A/B testing breakdown available with {len(ab_testing)} variations")
+                for variation in ab_testing:
+                    required_variation_fields = ['variation_name', 'sent', 'delivered', 
+                                               'opened', 'clicked', 'delivery_rate', 'open_rate']
+                    for field in required_variation_fields:
+                        if field not in variation:
+                            print(f"❌ Missing field in variation analytics: {field}")
+                            return False
+            
+            print(f"   Overall Stats: {overall.get('total_emails', 0)} emails, "
+                  f"{overall.get('open_rate', 0)}% open rate")
+            print(f"   A/B Variations: {len(ab_testing)} tested")
+            
         return success
 
     def test_enhanced_dashboard_stats(self):
