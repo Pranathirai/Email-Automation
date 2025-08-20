@@ -1658,10 +1658,10 @@ JWT,Test,jwt.test@example.com,JWT Corp,555-0000,test"""
         return all(all_tests)
 
 def main():
-    print("🚀 Starting MailerPro API Tests - Focus on JWT Authentication System")
-    print("=" * 70)
-    print("🎯 Testing JWT authentication to identify 'invalid token' errors")
-    print("=" * 70)
+    print("🚀 Starting MailerPro API Tests - Focus on Enhanced Campaign Management System")
+    print("=" * 80)
+    print("🎯 Testing enhanced campaign system with variables and A/B testing")
+    print("=" * 80)
     
     tester = MailerProAPITester()
     
@@ -1671,14 +1671,25 @@ def main():
             print("❌ Root endpoint failed, stopping tests")
             return 1
 
-        # JWT AUTHENTICATION TESTS - PRIMARY FOCUS
-        print("\n" + "=" * 25 + " JWT AUTHENTICATION TESTS " + "=" * 25)
+        # AUTHENTICATION SETUP
+        print("\n" + "=" * 25 + " AUTHENTICATION SETUP " + "=" * 25)
         
-        # Comprehensive JWT testing
-        jwt_success = tester.test_jwt_authentication_comprehensive()
+        # Create test user for campaign testing
+        test_email = f"campaigntest_{datetime.now().strftime('%Y%m%d_%H%M%S')}@example.com"
+        test_password = "CampaignTest123!"
+        test_name = "Campaign Test User"
         
-        # Additional specific tests for common issues
-        print("\n" + "=" * 25 + " ADDITIONAL AUTH TESTS " + "=" * 25)
+        success_reg, _ = tester.test_user_registration(test_email, test_password, test_name)
+        success_login, _ = tester.test_user_login(test_email, test_password)
+        
+        if not (success_reg and success_login):
+            print("❌ Authentication setup failed, stopping tests")
+            return 1
+        
+        print("✅ Authentication setup successful")
+
+        # ENHANCED CAMPAIGN SYSTEM TESTS - PRIMARY FOCUS
+        print("\n" + "=" * 25 + " ENHANCED CAMPAIGN SYSTEM TESTS " + "=" * 25)
         
         # Test token with different endpoints that users commonly access
         print(f"\n🔍 Testing Common User Endpoints...")
