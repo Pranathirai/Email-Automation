@@ -358,6 +358,113 @@ async def check_subscription_limits(user: User, resource_type: str, current_coun
     elif resource_type == "inboxes" and current_count >= plan["inboxes_limit"]:
         raise HTTPException(status_code=403, detail=f"Inbox limit reached. Upgrade to add more inboxes.")
 
+# SMTP Helper Functions
+def encrypt_sensitive_data(data: str) -> str:
+    """Simple base64 encoding for sensitive SMTP data - should use proper encryption in production"""
+    import base64
+    return base64.b64encode(data.encode()).decode()
+
+def decrypt_sensitive_data(encrypted_data: str) -> str:
+    """Simple base64 decoding for sensitive SMTP data - should use proper decryption in production"""
+    import base64
+    return base64.b64decode(encrypted_data.encode()).decode()
+
+async def get_default_smtp_settings(provider: SMTPProvider) -> dict:
+    """Get default SMTP settings for common providers"""
+    defaults = {
+        SMTPProvider.GMAIL: {
+            "smtp_host": "smtp.gmail.com",
+            "smtp_port": 587,
+            "use_tls": True,
+            "use_ssl": False
+        },
+        SMTPProvider.OUTLOOK: {
+            "smtp_host": "smtp-mail.outlook.com", 
+            "smtp_port": 587,
+            "use_tls": True,
+            "use_ssl": False
+        },
+        SMTPProvider.CUSTOM: {
+            "smtp_host": None,
+            "smtp_port": 587,
+            "use_tls": True,
+            "use_ssl": False
+        }
+    }
+    return defaults.get(provider, defaults[SMTPProvider.CUSTOM])
+
+async def test_smtp_connection(smtp_config: SMTPConfig, test_email: str, subject: str, content: str) -> dict:
+    """Test SMTP connection by sending a test email"""
+    try:
+        import aiosmtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        
+        # Create message
+        message = MIMEMultipart()
+        message["From"] = smtp_config.email
+        message["To"] = test_email
+        message["Subject"] = subject
+        message.attach(MIMEText(content, "plain"))
+        
+        # Decrypt credentials if needed
+        password = decrypt_sensitive_data(smtp_config.smtp_password) if smtp_config.smtp_password else None
+        
+        # Send email
+        await aiosmtplib.send(
+            message,
+            hostname=smtp_config.smtp_host,
+            port=smtp_config.smtp_port,
+            start_tls=smtp_config.use_tls,
+            use_tls=smtp_config.use_ssl,
+            username=smtp_config.smtp_username or smtp_config.email,
+            password=password,
+        )
+        
+        return {"success": True, "message": "Test email sent successfully"}
+        
+    except Exception as e:
+        return {"success": False, "message": f"SMTP test failed: {str(e)}"}
+
+async def send_email_via_smtp(smtp_config: SMTPConfig, to_email: str, subject: str, content: str, content_type: str = "html") -> dict:
+    """Send email using SMTP configuration"""
+    try:
+        import aiosmtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        
+        # Create message
+        message = MIMEMultipart()
+        message["From"] = smtp_config.email
+        message["To"] = to_email
+        message["Subject"] = subject
+        message.attach(MIMEText(content, content_type))
+        
+        # Decrypt credentials if needed
+        password = decrypt_sensitive_data(smtp_config.smtp_password) if smtp_config.smtp_password else None
+        
+        # Send email
+        await aiosmtplib.send(
+            message,
+            hostname=smtp_config.smtp_host,
+            port=smtp_config.smtp_port,
+            start_tls=smtp_config.use_tls,
+            use_tls=smtp_config.use_ssl,
+            username=smtp_config.smtp_username or smtp_config.email,
+            password=password,
+        )
+        
+        # Update daily sent count
+        await db.smtp_configs.update_one(
+            {"id": smtp_config.id},
+            {"$inc": {"daily_sent_count": 1}}
+        )
+        
+        return {"success": True, "message": "Email sent successfully"}
+        
+    except Exception as e:
+        return {"success": False, "message": f"Email sending failed: {str(e)}"}
+
 # Authentication Routes
 @api_router.post("/auth/register", response_model=UserResponse)
 async def register_user(user_data: UserCreate):
