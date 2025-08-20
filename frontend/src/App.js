@@ -1962,6 +1962,9 @@ const Campaigns = () => {
           </Table>
         </CardContent>
       </Card>
+    </div>
+  );
+};
 
 const SMTPConfigs = () => {
   const [smtpConfigs, setSmtpConfigs] = useState([]);
