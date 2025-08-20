@@ -15,6 +15,9 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 
+# Import email service
+from email_service import SMTPManager, EmailQueue, CampaignSender
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -22,6 +25,11 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+# Initialize email services
+smtp_manager = SMTPManager(db)
+email_queue = EmailQueue(db, smtp_manager)
+campaign_sender = CampaignSender(db, email_queue)
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -46,6 +54,11 @@ class EmailStatus(str, Enum):
     REPLIED = "replied"
     BOUNCED = "bounced"
     FAILED = "failed"
+
+class SMTPProvider(str, Enum):
+    GMAIL = "gmail"
+    OUTLOOK = "outlook"
+    CUSTOM = "custom"
 
 # Models
 class Contact(BaseModel):
@@ -110,6 +123,37 @@ class CampaignUpdate(BaseModel):
     delay_between_emails: Optional[int] = None
     personalization_enabled: Optional[bool] = None
 
+class SMTPConfig(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    provider: SMTPProvider
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    username: str
+    password: Optional[str] = None  # Will be encrypted in production
+    oauth_token: Optional[str] = None  # For Gmail/Outlook OAuth
+    refresh_token: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    is_active: bool = True
+    daily_limit: int = 100
+    use_tls: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class SMTPConfigCreate(BaseModel):
+    name: str
+    provider: SMTPProvider
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    username: str
+    password: Optional[str] = None
+    oauth_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    daily_limit: int = 100
+    use_tls: bool = True
+
 class EmailQueue(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     campaign_id: str
@@ -123,20 +167,10 @@ class EmailQueue(BaseModel):
     clicked_at: Optional[datetime] = None
     bounced_at: Optional[datetime] = None
     error_message: Optional[str] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class SMTPConfig(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    name: str
-    provider: str  # gmail, outlook, custom
-    smtp_host: Optional[str] = None
-    smtp_port: Optional[int] = None
-    username: str
-    password: Optional[str] = None  # Will be encrypted
-    use_oauth: bool = False
-    oauth_token: Optional[str] = None  # Will be encrypted
-    is_active: bool = True
-    daily_limit: int = 100
+    attempts: int = 0
+    max_attempts: int = 3
+    provider_used: Optional[str] = None
+    message_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 # Helper functions
@@ -373,6 +407,44 @@ async def preview_campaign(campaign_id: str, contact_id: str = Query(...)):
         }
     }
 
+# Campaign Sending
+@api_router.post("/campaigns/{campaign_id}/send")
+async def send_campaign(campaign_id: str):
+    """Schedule campaign for sending"""
+    try:
+        result = await campaign_sender.schedule_campaign(campaign_id)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error scheduling campaign: {str(e)}")
+
+@api_router.post("/campaigns/{campaign_id}/pause")
+async def pause_campaign(campaign_id: str):
+    """Pause an active campaign"""
+    campaign = await db.campaigns.find_one({"id": campaign_id})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {"$set": {"status": "paused", "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"message": "Campaign paused successfully"}
+
+@api_router.post("/campaigns/{campaign_id}/resume")
+async def resume_campaign(campaign_id: str):
+    """Resume a paused campaign"""
+    campaign = await db.campaigns.find_one({"id": campaign_id})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {"$set": {"status": "scheduled", "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"message": "Campaign resumed successfully"}
+
 # Campaign Analytics
 @api_router.get("/campaigns/{campaign_id}/analytics")
 async def get_campaign_analytics(campaign_id: str):
@@ -384,16 +456,20 @@ async def get_campaign_analytics(campaign_id: str):
     # Get email queue stats
     total_emails = await db.email_queue.count_documents({"campaign_id": campaign_id})
     sent_emails = await db.email_queue.count_documents({"campaign_id": campaign_id, "status": "sent"})
+    pending_emails = await db.email_queue.count_documents({"campaign_id": campaign_id, "status": "pending"})
+    failed_emails = await db.email_queue.count_documents({"campaign_id": campaign_id, "status": "failed"})
+    
+    # Advanced metrics (placeholder for future implementation)
     opened_emails = await db.email_queue.count_documents({"campaign_id": campaign_id, "status": "opened"})
     clicked_emails = await db.email_queue.count_documents({"campaign_id": campaign_id, "status": "clicked"})
     bounced_emails = await db.email_queue.count_documents({"campaign_id": campaign_id, "status": "bounced"})
-    failed_emails = await db.email_queue.count_documents({"campaign_id": campaign_id, "status": "failed"})
     
     return {
         "campaign_id": campaign_id,
         "campaign_name": campaign["name"],
         "total_emails": total_emails,
         "sent_emails": sent_emails,
+        "pending_emails": pending_emails,
         "delivered_emails": sent_emails - bounced_emails,
         "opened_emails": opened_emails,
         "clicked_emails": clicked_emails,
@@ -401,8 +477,102 @@ async def get_campaign_analytics(campaign_id: str):
         "failed_emails": failed_emails,
         "open_rate": round((opened_emails / sent_emails * 100) if sent_emails > 0 else 0, 2),
         "click_rate": round((clicked_emails / sent_emails * 100) if sent_emails > 0 else 0, 2),
-        "bounce_rate": round((bounced_emails / sent_emails * 100) if sent_emails > 0 else 0, 2)
+        "bounce_rate": round((bounced_emails / sent_emails * 100) if sent_emails > 0 else 0, 2),
+        "delivery_rate": round(((sent_emails - bounced_emails) / sent_emails * 100) if sent_emails > 0 else 0, 2)
     }
+
+# SMTP Configuration Routes
+@api_router.post("/smtp-configs", response_model=SMTPConfig)
+async def create_smtp_config(smtp_data: SMTPConfigCreate):
+    smtp_dict = smtp_data.dict()
+    smtp_config = SMTPConfig(**smtp_dict)
+    smtp_mongo = prepare_for_mongo(smtp_config.dict())
+    await db.smtp_configs.insert_one(smtp_mongo)
+    
+    # Reload SMTP providers
+    await smtp_manager.load_providers()
+    
+    return smtp_config
+
+@api_router.get("/smtp-configs", response_model=List[SMTPConfig])
+async def get_smtp_configs():
+    configs = await db.smtp_configs.find().to_list(length=None)
+    return [SMTPConfig(**parse_from_mongo(config)) for config in configs]
+
+@api_router.get("/smtp-configs/{config_id}", response_model=SMTPConfig)
+async def get_smtp_config(config_id: str):
+    config = await db.smtp_configs.find_one({"id": config_id})
+    if not config:
+        raise HTTPException(status_code=404, detail="SMTP config not found")
+    return SMTPConfig(**parse_from_mongo(config))
+
+@api_router.put("/smtp-configs/{config_id}", response_model=SMTPConfig)
+async def update_smtp_config(config_id: str, smtp_data: SMTPConfigCreate):
+    config = await db.smtp_configs.find_one({"id": config_id})
+    if not config:
+        raise HTTPException(status_code=404, detail="SMTP config not found")
+    
+    update_data = smtp_data.dict()
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.smtp_configs.update_one({"id": config_id}, {"$set": update_data})
+    
+    # Reload SMTP providers
+    await smtp_manager.load_providers()
+    
+    updated_config = await db.smtp_configs.find_one({"id": config_id})
+    return SMTPConfig(**parse_from_mongo(updated_config))
+
+@api_router.delete("/smtp-configs/{config_id}")
+async def delete_smtp_config(config_id: str):
+    result = await db.smtp_configs.delete_one({"id": config_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="SMTP config not found")
+    
+    # Reload SMTP providers
+    await smtp_manager.load_providers()
+    
+    return {"message": "SMTP config deleted successfully"}
+
+@api_router.post("/smtp-configs/{config_id}/test")
+async def test_smtp_config(config_id: str, test_email: str = Query(...)):
+    """Test an SMTP configuration by sending a test email"""
+    config = await db.smtp_configs.find_one({"id": config_id})
+    if not config:
+        raise HTTPException(status_code=404, detail="SMTP config not found")
+    
+    # Send test email using the email service
+    result = await smtp_manager.send_email(
+        to_email=test_email,
+        subject="Test Email from MailerPro",
+        content="This is a test email to verify your SMTP configuration is working correctly.",
+        from_name="MailerPro Test"
+    )
+    
+    return result
+
+# Email Queue Routes
+@api_router.get("/email-queue")
+async def get_email_queue(
+    campaign_id: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    limit: int = Query(100, ge=1, le=1000)
+):
+    """Get email queue with optional filtering"""
+    query = {}
+    if campaign_id:
+        query["campaign_id"] = campaign_id
+    if status:
+        query["status"] = status
+    
+    emails = await db.email_queue.find(query).limit(limit).sort("created_at", -1).to_list(length=None)
+    return [parse_from_mongo(email) for email in emails]
+
+@api_router.post("/email-queue/process")
+async def process_email_queue():
+    """Manually trigger email queue processing"""
+    await email_queue.process_queue()
+    return {"message": "Email queue processing triggered"}
 
 # Stats Routes (Enhanced)
 @api_router.get("/stats/dashboard")
@@ -430,12 +600,16 @@ async def get_dashboard_stats():
     total_opens = await db.email_queue.count_documents({"status": "opened"})
     overall_open_rate = round((total_opens / total_emails_sent * 100) if total_emails_sent > 0 else 0, 2)
     
+    # Get pending emails
+    pending_emails = await db.email_queue.count_documents({"status": "pending"})
+    
     return {
         "total_contacts": total_contacts,
         "total_campaigns": total_campaigns,
         "recent_contacts": recent_contacts,
         "active_campaigns": active_campaigns,
         "total_emails_sent": total_emails_sent,
+        "pending_emails": pending_emails,
         "overall_open_rate": overall_open_rate
     }
 
@@ -461,6 +635,11 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize email services on startup"""
+    await smtp_manager.load_providers()
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
