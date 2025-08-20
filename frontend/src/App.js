@@ -1610,12 +1610,43 @@ const SMTPConfigs = () => {
             </div>
 
             {testResult && (
-              <Alert variant={testResult.success ? "default" : "destructive"}>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  {testResult.message}
-                </AlertDescription>
-              </Alert>
+              <div className="space-y-3">
+                <Alert variant={testResult.success ? "default" : "destructive"}>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {testResult.message}
+                  </AlertDescription>
+                </Alert>
+                
+                {testResult.error_type === 'gmail_app_password_required' && (
+                  <Card className="bg-blue-50 border-blue-200">
+                    <CardContent className="pt-4 text-sm">
+                      <h4 className="font-medium mb-2">Gmail Setup Steps:</h4>
+                      <ol className="list-decimal list-inside space-y-1 text-blue-800">
+                        <li>Go to your <a href="https://myaccount.google.com/security" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Google Account Security</a></li>
+                        <li>Enable 2-factor authentication if not already enabled</li>
+                        <li>Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">App Passwords</a></li>
+                        <li>Generate a new app password for "Mail"</li>
+                        <li>Use that 16-character password (not your regular password)</li>
+                      </ol>
+                    </CardContent>
+                  </Card>
+                )}
+                
+                {testResult.error_type === 'authentication_failed' && (
+                  <Card className="bg-yellow-50 border-yellow-200">
+                    <CardContent className="pt-4 text-sm">
+                      <h4 className="font-medium mb-2">Authentication Tips:</h4>
+                      <ul className="list-disc list-inside space-y-1 text-yellow-800">
+                        <li>Double-check your username and password</li>
+                        <li>For Gmail: Use App Password instead of regular password</li>
+                        <li>For Outlook: May need App Password if 2FA is enabled</li>
+                        <li>Username is usually your full email address</li>
+                      </ul>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             )}
           </div>
           <DialogFooter>
