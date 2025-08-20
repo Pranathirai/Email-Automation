@@ -434,19 +434,27 @@ async def test_smtp_connection(smtp_config: SMTPConfig, test_email: str, subject
                 "message": "Gmail requires an App Password. Please: 1) Enable 2FA on your Google account, 2) Generate an App Password at myaccount.google.com/apppasswords, 3) Use that App Password instead of your regular password.",
                 "error_type": "gmail_app_password_required"
             }
-        elif "535" in error_message and "authentication" in error_message.lower():
-            return {
-                "success": False,
-                "message": "Authentication failed. Please check your username and password. For Gmail, use an App Password instead of your regular password.",
-                "error_type": "authentication_failed"
-            }
-        elif "Connection refused" in error_message or "Connection timed out" in error_message:
+        elif "535" in error_message and ("Username and Password not accepted" in error_message or "authentication" in error_message.lower()):
+            # Special handling for Gmail 535 errors
+            if "gmail.com" in smtp_config.smtp_host.lower():
+                return {
+                    "success": False,
+                    "message": "Gmail requires an App Password. Please: 1) Enable 2FA on your Google account, 2) Generate an App Password at myaccount.google.com/apppasswords, 3) Use that App Password instead of your regular password.",
+                    "error_type": "gmail_app_password_required"
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": "Authentication failed. Please check your username and password. For Gmail, use an App Password instead of your regular password.",
+                    "error_type": "authentication_failed"
+                }
+        elif "Error connecting" in error_message and ("Name or service not known" in error_message or "Connection refused" in error_message or "Connection timed out" in error_message):
             return {
                 "success": False,
                 "message": "Cannot connect to SMTP server. Please check your host and port settings.",
                 "error_type": "connection_failed"
             }
-        elif "SSL" in error_message or "TLS" in error_message:
+        elif "SSL" in error_message or "TLS" in error_message or "Unexpected EOF received" in error_message:
             return {
                 "success": False,
                 "message": "SSL/TLS connection error. Try toggling TLS/SSL settings or use port 465 for SSL.",
