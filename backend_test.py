@@ -1691,18 +1691,74 @@ def main():
         # ENHANCED CAMPAIGN SYSTEM TESTS - PRIMARY FOCUS
         print("\n" + "=" * 25 + " ENHANCED CAMPAIGN SYSTEM TESTS " + "=" * 25)
         
-        # Test token with different endpoints that users commonly access
-        print(f"\n🔍 Testing Common User Endpoints...")
+        # Comprehensive enhanced campaign system testing
+        campaign_success = tester.test_enhanced_campaign_system_comprehensive()
         
-        # Create a fresh user for endpoint testing
-        test_email = f"endpointtest_{datetime.now().strftime('%Y%m%d_%H%M%S')}@example.com"
-        test_password = "EndpointTest123!"
-        test_name = "Endpoint Test User"
+        # Additional specific campaign tests
+        print("\n" + "=" * 25 + " ADDITIONAL CAMPAIGN TESTS " + "=" * 25)
         
-        success_reg, _ = tester.test_user_registration(test_email, test_password, test_name)
-        success_login, _ = tester.test_user_login(test_email, test_password)
+        # Test individual campaign components
+        print(f"\n🔍 Testing Individual Campaign Components...")
         
-        if success_reg and success_login:
+        # Test template variables endpoint
+        print(f"\n   Testing Template Variables Endpoint...")
+        success_vars, vars_response = tester.test_get_available_variables()
+        
+        # Test template validation with various scenarios
+        print(f"\n   Testing Template Validation Scenarios...")
+        validation_tests = [
+            ("Valid simple template", "Hello {{first_name}}!", True),
+            ("Valid complex template", "Hi {{first_name}} from {{company}}, your email is {{email}}", True),
+            ("Invalid template", "Hello {{invalid_var}}!", False),
+            ("Mixed valid/invalid", "Hi {{first_name}}, unknown {{bad_var}}", False),
+            ("No variables", "Hello there!", True)
+        ]
+        
+        validation_results = []
+        for test_name, template, expected_valid in validation_tests:
+            success, response = tester.test_validate_template(template)
+            if success:
+                actual_valid = response.get('is_valid', False)
+                test_passed = (actual_valid == expected_valid)
+                validation_results.append(test_passed)
+                status = "✅ PASS" if test_passed else "❌ FAIL"
+                print(f"     {test_name}: {status}")
+            else:
+                validation_results.append(False)
+                print(f"     {test_name}: ❌ FAIL (API error)")
+        
+        # Test campaign CRUD operations with enhanced features
+        print(f"\n   Testing Enhanced Campaign CRUD Operations...")
+        
+        # Create a simple A/B test campaign
+        simple_ab_steps = [{
+            "sequence_order": 1,
+            "delay_days": 0,
+            "variations": [
+                {
+                    "name": "Version A",
+                    "subject": "Quick Test {{first_name}}",
+                    "content": "Hello {{first_name}}, this is version A!",
+                    "weight": 50
+                },
+                {
+                    "name": "Version B", 
+                    "subject": "Hello {{first_name}}",
+                    "content": "Hi {{first_name}}, this is version B!",
+                    "weight": 50
+                }
+            ]
+        }]
+        
+        simple_campaign_id = tester.test_create_enhanced_campaign(
+            name="Simple A/B Test Campaign",
+            steps=simple_ab_steps,
+            description="Simple A/B test for CRUD operations"
+        )
+        
+        crud_success = simple_campaign_id is not None
+        
+        if simple_campaign_id:
             # Test dashboard stats (commonly accessed)
             success_dashboard = tester.test_dashboard_stats()
             
