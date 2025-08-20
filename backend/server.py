@@ -292,7 +292,8 @@ def prepare_for_mongo(data):
 
 def parse_from_mongo(item):
     datetime_fields = ['created_at', 'updated_at', 'scheduled_at', 'sent_at', 'delivered_at', 
-                      'opened_at', 'clicked_at', 'bounced_at', 'replied_at', 'subscription_expires_at']
+                      'opened_at', 'clicked_at', 'bounced_at', 'replied_at', 'subscription_expires_at',
+                      'token_expires_at', 'last_test_at']
     for field in datetime_fields:
         if isinstance(item.get(field), str):
             try:
