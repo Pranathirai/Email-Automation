@@ -1,0 +1,105 @@
+<analysis>
+The previous AI engineer successfully initiated and progressed the MailerPro application, an email outreach SaaS. The work followed an agile, iterative approach, focusing on delivering core value quickly as outlined by a phased roadmap. The project started with fundamental contact management, followed by the development of campaign creation and email sending infrastructure. Key technical decisions include using FastAPI for the backend, React for the frontend, MongoDB for the database, and adhering to strict environment variable and URL handling protocols. The engineer utilized  for significant code updates, integrated  for a modern UI, and consistently leveraged a  to validate functionality after each major feature implementation. The trajectory shows a strong emphasis on user feedback, robust testing, and adherence to specific design guidelines and environmental constraints. The work is currently focused on implementing user authentication and subscription features.
+</analysis>
+
+<product_requirements>
+The goal is to build MailerPro, an email outreach SaaS.
+**Core Features:**
+1.  **User Authentication & Subscription:** Email/password login, with future Google OAuth. Integration with Stripe for subscription plans (Free Trial, Pro, Agency) including usage limits (contacts, campaigns, inboxes). An Admin Panel to manage users, subscriptions, and monitor sending.
+2.  **Email Account Integration:** Securely connect Gmail/Outlook/SMTP inboxes (OAuth, IMAP/SMTP). Support multiple inboxes per user, storing tokens securely.
+3.  **Campaign Management:** Users create email sequences (steps, follow-ups), schedule sending with daily limits and random delays. Support inbox rotation across multiple accounts.
+4.  **Contact Management:** Upload CSV for bulk contact import (name, email, company). Store and segment contacts into lists, supporting personalization tags (e.g., ).
+5.  **Deliverability Features:** Automatic warm-up toggle, custom sending domains (SPF, DKIM, DMARC instructions).
+6.  **Analytics & Reporting:** Track opens, clicks, replies, bounces. Dashboard with campaign performance (charts, stats), and report export.
+
+**Implementation Status:**
+*   **Milestone 1 (Complete):** Contact Management (CRUD, CSV upload, dashboard with real-time metrics, search, duplicate validation).
+*   **Milestone 2 (In Progress):** Campaign Creation + Email Sending.
+    *   **Phase 2A (Complete):** Campaign Builder UI (create/edit campaigns, add contacts), Email Composer (rich text, personalization tags, real-time preview, one-click tag insertion).
+    *   **Phase 2B (Complete):** SMTP Integration Framework (multi-provider support for Gmail OAuth, Outlook OAuth, Custom SMTP; provider management, round-robin, daily limits). Email Queue System (smart scheduling, retry logic, status tracking). Campaign Sending Engine (one-click sending, personalization, batch processing, campaign control).
+*   **Milestone 3 (Started):** User Authentication + Subscriptions.
+*   **Milestone 4 & 5 (Pending):** Analytics & Reporting, Deliverability & Advanced Features.
+</product_requirements>
+
+<key_technical_concepts>
+-   **Full-Stack Architecture:** React (Frontend), FastAPI (Backend), MongoDB (Database).
+-   **UI/UX:** Tailwind CSS for styling, Shadcn/ui for components,  for icons.
+-   **API Integration:**  for frontend-backend communication.
+-   **Data Handling:** Pydantic models, UUIDs for MongoDB IDs, timezone-aware  objects.
+-   **Backend Tools:** , , , , .
+-   **External Services:** Stripe (payments), SMTP (email sending),  (LLM/Stripe via internal library).
+-   **Deployment & Environment:** Kubernetes, backend                          RUNNING   pid 27, uptime 0:00:09
+code-server                      RUNNING   pid 29, uptime 0:00:09
+frontend                         STOPPED   Aug 20 04:53 PM
+mongodb                          RUNNING   pid 34, uptime 0:00:09
+supervisor>  for process management, strict  variable usage.
+</key_technical_concepts>
+
+<code_architecture>
+The application utilizes a monorepo structure with distinct  and  directories.
+
+
+
+**Key Files and Their Importance:**
+
+-   :
+    -   **Summary**: The central FastAPI application. It defines all API routes and backend logic.
+    -   **Changes**: Iteratively updated. Initially contained basic setup. Expanded to include:
+        -   Contact Management APIs (CRUD, CSV upload, search, dashboard stats).
+        -   Campaign Management APIs (CRUD, personalization preview, analytics).
+        -   SMTP Configuration APIs (add, edit, delete, test email sending).
+        -   Currently being updated with User Authentication and Subscription APIs.
+        -   Ensures proper CORS handling and environment variable usage for .
+
+-   :
+    -   **Summary**: The main React component that handles application routing and layout.
+    -   **Changes**: Incrementally modified. Initially contained dashboard and contact management UI. Extended to include:
+        -    and  components for contact management.
+        -    and  components for campaign creation.
+        -    components for managing email accounts.
+        -   Navigation links for new sections (e.g., , ).
+        -   Currently being updated for user authentication and subscription UI.
+        -   Uses  for all API calls.
+
+-   :
+    -   **Summary**: Lists all Python dependencies for the FastAPI backend.
+    -   **Changes**: Updated to include ,  for MongoDB, , , ,  for contacts/campaigns, and most recently  for user authentication.
+
+-   :
+    -   **Summary**: Manages Node.js dependencies and scripts for the React frontend.
+    -   **Changes**: Contains dependencies for React (, ), routing (), UI libraries (,  through radix), styling (, ), API calls (), and form management (, ). No significant changes beyond initial setup are explicitly detailed in the trajectory, but new UI components would pull from this.
+
+-   :
+    -   **Summary**: Contains pre-built Shadcn UI components (e.g., , , , , ).
+    -   **Changes**: These components are consumed by  and other new React components to maintain a consistent, modern UI style throughout the application.
+
+-    and :
+    -   **Summary**: Store environment-specific variables.
+    -   **Changes**:  contains .  contains . These files are crucial for service communication and are explicitly protected from direct modification in code.
+
+The overall architecture follows an API-first approach, with clear separation between frontend and backend, enabling future scalability and mobile app extension.
+</code_architecture>
+
+<pending_tasks>
+-   Complete implementation of Google OAuth for user authentication.
+-   Complete implementation of Outlook OAuth for email account integration.
+-   Fully integrate Stripe for subscription management (plans, usage limits, payments).
+-   Develop the Admin Dashboard for user, subscription, and sending volume management.
+-   Implement comprehensive Analytics & Reporting (track opens, clicks, replies, bounces; generate charts/stats).
+-   Enable export of reports (CSV, PDF).
+-   Develop Deliverability & Advanced Features (Inbox rotation, Warm-up system, Team collaboration, API for integrations).
+</pending_tasks>
+
+<current_work>
+The previous AI engineer was actively working on **Milestone 3: User Authentication + Subscriptions** along with enhancing analytics.
+
+Specifically, the work involved:
+1.  **Backend Dependencies**: Updating  to include  for password hashing, and installing these new dependencies.
+2.  **Core Implementation**: Major code changes were applied to  and  using  to establish the authentication and subscription systems. This implies creating user models, registration/login routes, and corresponding frontend forms/logic.
+3.  **Stripe Integration**: The engineer initiated the Stripe integration, acknowledging the need to obtain the Stripe API key. The last recorded action was the AI engineer stating, Let me fix the missing import and add the Stripe API key to the environment, indicating that the immediate task is to resolve a code dependency related to the authentication/subscription setup and correctly configure the Stripe API key for the environment.
+The product currently has fully functional Contact Management and a complete framework for Campaign Creation and Email Sending, awaiting actual SMTP credentials to send live emails. The user authentication and subscription system is in its initial implementation phase.
+</current_work>
+
+<optional_next_step>
+Continue with the implementation of Milestone 3: User Authentication and Subscriptions, focusing on resolving the missing import and correctly integrating the Stripe API key.
+</optional_next_step>
