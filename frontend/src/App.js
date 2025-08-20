@@ -1,38 +1,509 @@
-import { useEffect } from "react";
-import "./App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import axios from 'axios';
+import './App.css';
+
+// Import UI components
+import { Button } from './components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
+import { Input } from './components/ui/input';
+import { Label } from './components/ui/label';
+import { Badge } from './components/ui/badge';
+import { Separator } from './components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
+import { Textarea } from './components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/select';
+import { toast, useToast } from './hooks/use-toast';
+import { Toaster } from './components/ui/toaster';
+
+// Icons
+import { Upload, Users, Mail, BarChart3, Plus, Search, Filter, Edit, Trash2, FileSpreadsheet } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const Home = () => {
-  const helloWorldApi = async () => {
+// Dashboard Component
+const Dashboard = () => {
+  const [stats, setStats] = useState({
+    total_contacts: 0,
+    total_campaigns: 0,
+    recent_contacts: 0,
+    active_campaigns: 0
+  });
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
     try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
+      const response = await axios.get(`${API}/stats/dashboard`);
+      setStats(response.data);
+    } catch (error) {
+      console.error('Error fetching stats:', error);
     }
   };
 
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <p className="text-muted-foreground">
+          Overview of your email outreach campaigns
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total_contacts}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.recent_contacts} added this week
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Campaigns</CardTitle>
+            <Mail className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total_campaigns}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.active_campaigns} currently active
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Open Rate</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">0%</div>
+            <p className="text-xs text-muted-foreground">
+              No campaigns sent yet
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Response Rate</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">0%</div>
+            <p className="text-xs text-muted-foreground">
+              No responses yet
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// Contacts Component
+const Contacts = () => {
+  const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [newContact, setNewContact] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    company: '',
+    phone: '',
+    tags: ''
+  });
+  const { toast } = useToast();
+
   useEffect(() => {
-    helloWorldApi();
+    fetchContacts();
   }, []);
 
+  const fetchContacts = async (search = '') => {
+    try {
+      setLoading(true);
+      const params = search ? `?search=${encodeURIComponent(search)}` : '';
+      const response = await axios.get(`${API}/contacts${params}`);
+      setContacts(response.data);
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch contacts",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    
+    // Debounce search
+    const timeoutId = setTimeout(() => {
+      fetchContacts(value);
+    }, 300);
+    
+    return () => clearTimeout(timeoutId);
+  };
+
+  const handleFileUpload = async () => {
+    if (!selectedFile) {
+      toast({
+        title: "Error",
+        description: "Please select a CSV file",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      const response = await axios.post(`${API}/contacts/upload-csv`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      toast({
+        title: "Success",
+        description: `${response.data.contacts_created} contacts added successfully`,
+      });
+
+      setSelectedFile(null);
+      fetchContacts();
+    } catch (error) {
+      console.error('Error uploading CSV:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to upload CSV",
+        variant: "destructive"
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleAddContact = async () => {
+    try {
+      const contactData = {
+        ...newContact,
+        tags: newContact.tags ? newContact.tags.split(',').map(tag => tag.trim()) : []
+      };
+      
+      await axios.post(`${API}/contacts`, contactData);
+      
+      toast({
+        title: "Success",
+        description: "Contact added successfully",
+      });
+      
+      setShowAddDialog(false);
+      setNewContact({
+        first_name: '',
+        last_name: '',
+        email: '',
+        company: '',
+        phone: '',
+        tags: ''
+      });
+      
+      fetchContacts();
+    } catch (error) {
+      console.error('Error adding contact:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to add contact",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight">Contacts</h2>
+        <p className="text-muted-foreground">
+          Manage your contact database
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex gap-2">
+          <div className="relative flex-1 md:max-w-sm">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search contacts..."
+              value={searchTerm}
+              onChange={handleSearch}
+              className="pl-8"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <input
+            type="file"
+            accept=".csv"
+            onChange={(e) => setSelectedFile(e.target.files[0])}
+            className="hidden"
+            id="csv-upload"
+          />
+          <label htmlFor="csv-upload">
+            <Button variant="outline" className="cursor-pointer" asChild>
+              <span>
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                Upload CSV
+              </span>
+            </Button>
+          </label>
+          
+          {selectedFile && (
+            <Button onClick={handleFileUpload} disabled={uploading}>
+              <Upload className="mr-2 h-4 w-4" />
+              {uploading ? 'Uploading...' : 'Import'}
+            </Button>
+          )}
+
+          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Contact
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add New Contact</DialogTitle>
+                <DialogDescription>
+                  Add a new contact to your database.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="first_name">First Name</Label>
+                    <Input
+                      id="first_name"
+                      value={newContact.first_name}
+                      onChange={(e) => setNewContact({...newContact, first_name: e.target.value})}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="last_name">Last Name</Label>
+                    <Input
+                      id="last_name"
+                      value={newContact.last_name}
+                      onChange={(e) => setNewContact({...newContact, last_name: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={newContact.email}
+                    onChange={(e) => setNewContact({...newContact, email: e.target.value})}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="company">Company</Label>
+                  <Input
+                    id="company"
+                    value={newContact.company}
+                    onChange={(e) => setNewContact({...newContact, company: e.target.value})}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    value={newContact.phone}
+                    onChange={(e) => setNewContact({...newContact, phone: e.target.value})}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="tags">Tags (comma separated)</Label>
+                  <Input
+                    id="tags"
+                    value={newContact.tags}
+                    onChange={(e) => setNewContact({...newContact, tags: e.target.value})}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="submit" onClick={handleAddContact}>Add Contact</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {selectedFile && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="h-4 w-4" />
+              <span className="text-sm">{selectedFile.name}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedFile(null)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Company</TableHead>
+                <TableHead>Tags</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    Loading contacts...
+                  </TableCell>
+                </TableRow>
+              ) : contacts.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    No contacts found. Upload a CSV or add contacts manually.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                contacts.map((contact) => (
+                  <TableRow key={contact.id}>
+                    <TableCell>
+                      {contact.first_name} {contact.last_name}
+                    </TableCell>
+                    <TableCell>{contact.email}</TableCell>
+                    <TableCell>{contact.company || '-'}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1 flex-wrap">
+                        {contact.tags?.map((tag) => (
+                          <Badge key={tag} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="sm">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// Campaigns Component (Placeholder)
+const Campaigns = () => {
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight">Campaigns</h2>
+        <p className="text-muted-foreground">
+          Create and manage email campaigns
+        </p>
+      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center py-8">
+            <Mail className="mx-auto h-12 w-12 text-muted-foreground" />
+            <h3 className="mt-4 text-lg font-medium">Campaign management coming soon</h3>
+            <p className="text-muted-foreground">Create powerful email sequences and campaigns</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// Layout Component
+const Layout = ({ children }) => {
+  const location = useLocation();
+
+  const navigation = [
+    { name: 'Dashboard', href: '/', icon: BarChart3 },
+    { name: 'Contacts', href: '/contacts', icon: Users },
+    { name: 'Campaigns', href: '/campaigns', icon: Mail },
+  ];
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="border-b">
+        <div className="flex h-16 items-center px-4">
+          <div className="flex items-center space-x-4">
+            <Mail className="h-6 w-6" />
+            <h1 className="text-xl font-bold">MailerPro</h1>
+          </div>
+          <nav className="ml-8 flex items-center space-x-4">
+            {navigation.map((item) => {
+              const isActive = location.pathname === item.href;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={`flex items-center space-x-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      </div>
+      <main className="p-8">
+        {children}
+      </main>
+      <Toaster />
     </div>
   );
 };
@@ -41,11 +512,13 @@ function App() {
   return (
     <div className="App">
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/contacts" element={<Contacts />} />
+            <Route path="/campaigns" element={<Campaigns />} />
+          </Routes>
+        </Layout>
       </BrowserRouter>
     </div>
   );
