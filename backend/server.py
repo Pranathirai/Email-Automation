@@ -425,7 +425,35 @@ async def test_smtp_connection(smtp_config: SMTPConfig, test_email: str, subject
         return {"success": True, "message": "Test email sent successfully"}
         
     except Exception as e:
-        return {"success": False, "message": f"SMTP test failed: {str(e)}"}
+        error_message = str(e)
+        
+        # Provide more helpful error messages for common issues
+        if "534" in error_message and "Application-specific password" in error_message:
+            return {
+                "success": False, 
+                "message": "Gmail requires an App Password. Please: 1) Enable 2FA on your Google account, 2) Generate an App Password at myaccount.google.com/apppasswords, 3) Use that App Password instead of your regular password.",
+                "error_type": "gmail_app_password_required"
+            }
+        elif "535" in error_message and "authentication" in error_message.lower():
+            return {
+                "success": False,
+                "message": "Authentication failed. Please check your username and password. For Gmail, use an App Password instead of your regular password.",
+                "error_type": "authentication_failed"
+            }
+        elif "Connection refused" in error_message or "Connection timed out" in error_message:
+            return {
+                "success": False,
+                "message": "Cannot connect to SMTP server. Please check your host and port settings.",
+                "error_type": "connection_failed"
+            }
+        elif "SSL" in error_message or "TLS" in error_message:
+            return {
+                "success": False,
+                "message": "SSL/TLS connection error. Try toggling TLS/SSL settings or use port 465 for SSL.",
+                "error_type": "ssl_tls_error"
+            }
+        else:
+            return {"success": False, "message": f"SMTP test failed: {error_message}", "error_type": "unknown_error"}
 
 async def send_email_via_smtp(smtp_config: SMTPConfig, to_email: str, subject: str, content: str, content_type: str = "html") -> dict:
     """Send email using SMTP configuration"""
