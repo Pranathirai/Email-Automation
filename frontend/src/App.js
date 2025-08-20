@@ -469,6 +469,69 @@ const Campaigns = () => {
     }
   };
 
+  const handleSendCampaign = async (campaignId) => {
+    try {
+      const response = await axios.post(`${API}/campaigns/${campaignId}/send`);
+      
+      if (response.data.success) {
+        toast({
+          title: "Success",
+          description: `Campaign scheduled! ${response.data.emails_scheduled} emails will be sent.`,
+        });
+        fetchCampaigns();
+      } else {
+        toast({
+          title: "Error",
+          description: response.data.error || "Failed to send campaign",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error sending campaign:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to send campaign",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handlePauseCampaign = async (campaignId) => {
+    try {
+      await axios.post(`${API}/campaigns/${campaignId}/pause`);
+      toast({
+        title: "Success",
+        description: "Campaign paused successfully",
+      });
+      fetchCampaigns();
+    } catch (error) {
+      console.error('Error pausing campaign:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to pause campaign",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleResumeCampaign = async (campaignId) => {
+    try {
+      await axios.post(`${API}/campaigns/${campaignId}/resume`);
+      toast({
+        title: "Success",
+        description: "Campaign resumed successfully",
+      });
+      fetchCampaigns();
+    } catch (error) {
+      console.error('Error resuming campaign:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to resume campaign",
+        variant: "destructive"
+      });
+    }
+  };
+
   const getStatusBadge = (status) => {
     const statusConfig = {
       draft: { variant: "secondary", label: "Draft" },
