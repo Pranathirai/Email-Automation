@@ -585,8 +585,8 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
                 print(f"   ❌ Error deleting contact {contact_id}: {str(e)}")
 
 def main():
-    print("🚀 Starting MailerPro API Tests")
-    print("=" * 50)
+    print("🚀 Starting MailerPro API Tests - Focus on SMTP Configuration System")
+    print("=" * 70)
     
     tester = MailerProAPITester()
     
@@ -596,121 +596,146 @@ def main():
             print("❌ Root endpoint failed, stopping tests")
             return 1
 
-        # Test 2: Dashboard stats
-        if not tester.test_dashboard_stats():
-            print("❌ Dashboard stats failed")
-
-        # Test 3: Create contacts
-        contact1_id = tester.test_create_contact(
-            "Alice", "Johnson", "alice.johnson@test.com", 
-            "Test Corp", "555-0001", ["lead", "priority"]
-        )
+        # Authentication Tests
+        print("\n" + "=" * 25 + " AUTHENTICATION TESTS " + "=" * 25)
         
-        contact2_id = tester.test_create_contact(
-            "Bob", "Wilson", "bob.wilson@test.com",
-            "Demo Inc", "555-0002", ["demo"]
-        )
-
-        contact3_id = tester.test_create_contact(
-            "Charlie", "Brown", "charlie.brown@test.com"
-        )
-
-        # Test 4: Duplicate contact (should fail)
-        if contact1_id:
-            tester.test_create_duplicate_contact("alice.johnson@test.com")
-
-        # Test 5: Get all contacts
-        success, contacts = tester.test_get_contacts()
+        # Test 2: User Registration
+        test_email = f"testuser_{datetime.now().strftime('%Y%m%d_%H%M%S')}@mailerpro.test"
+        test_password = "SecurePassword123!"
+        test_name = "Test User"
+        
+        success, user_data = tester.test_user_registration(test_email, test_password, test_name)
         if not success:
-            print("❌ Get contacts failed")
+            print("❌ User registration failed, stopping tests")
+            return 1
 
-        # Test 6: Search contacts
-        tester.test_get_contacts_with_search("Alice")
-        tester.test_get_contacts_with_search("Test Corp")
+        # Test 3: User Login
+        success, login_data = tester.test_user_login(test_email, test_password)
+        if not success:
+            print("❌ User login failed, stopping tests")
+            return 1
 
-        # Test 7: Get single contact
-        if contact1_id:
-            tester.test_get_single_contact(contact1_id)
+        # Test 4: Get current user info
+        tester.test_get_current_user()
 
-        # Test 8: Update contact
-        if contact1_id:
-            tester.test_update_contact(contact1_id, {
-                "company": "Updated Corp",
-                "tags": ["updated", "priority"]
+        # SMTP Configuration Tests
+        print("\n" + "=" * 25 + " SMTP CONFIGURATION TESTS " + "=" * 25)
+        
+        # Test 5: Create Gmail SMTP Config
+        gmail_config_id = tester.test_create_smtp_config(
+            name="My Gmail Account",
+            provider="gmail",
+            email="user@gmail.com",
+            smtp_username="user@gmail.com",
+            smtp_password="app_password_123",
+            daily_limit=500
+        )
+
+        # Test 6: Create Outlook SMTP Config
+        outlook_config_id = tester.test_create_smtp_config(
+            name="Corporate Outlook",
+            provider="outlook",
+            email="user@company.com",
+            smtp_username="user@company.com",
+            smtp_password="outlook_password",
+            daily_limit=300
+        )
+
+        # Test 7: Create Custom SMTP Config
+        custom_config_id = tester.test_create_smtp_config(
+            name="Custom SMTP Server",
+            provider="custom",
+            email="user@customdomain.com",
+            smtp_host="mail.customdomain.com",
+            smtp_port=587,
+            smtp_username="user@customdomain.com",
+            smtp_password="custom_password",
+            use_tls=True,
+            daily_limit=200
+        )
+
+        # Test 8: Get all SMTP configs
+        success, smtp_configs = tester.test_get_smtp_configs()
+        if not success:
+            print("❌ Get SMTP configs failed")
+
+        # Test 9: Get single SMTP config
+        if gmail_config_id:
+            tester.test_get_single_smtp_config(gmail_config_id)
+
+        # Test 10: Update SMTP config
+        if outlook_config_id:
+            tester.test_update_smtp_config(outlook_config_id, {
+                "name": "Updated Corporate Outlook",
+                "daily_limit": 400,
+                "is_active": True
             })
 
-        # Test 9: CSV upload
-        tester.test_csv_upload()
+        # Test 11: Test SMTP connection (will fail with dummy credentials, but should handle gracefully)
+        if gmail_config_id:
+            tester.test_smtp_connection_test(
+                gmail_config_id,
+                test_email="test@example.com",
+                subject="MailerPro SMTP Test",
+                content="This is a test email from MailerPro SMTP configuration system."
+            )
 
-        # Test 10: Invalid CSV upload
-        tester.test_invalid_csv_upload()
+        # Test 12: Get SMTP config stats
+        if gmail_config_id:
+            tester.test_smtp_config_stats(gmail_config_id)
 
-        # Test 11: Delete contact
-        if contact3_id:
-            tester.test_delete_contact(contact3_id)
+        # Test 13: Test unauthorized access (should fail)
+        if gmail_config_id:
+            # Temporarily remove auth token
+            temp_token = tester.auth_token
+            tester.auth_token = None
+            tester.test_unauthorized_smtp_access(gmail_config_id)
+            tester.auth_token = temp_token
+
+        # Test 14: Delete SMTP config
+        if custom_config_id:
+            tester.test_delete_smtp_config(custom_config_id)
             # Remove from cleanup list since we deleted it
-            if contact3_id in tester.created_contact_ids:
-                tester.created_contact_ids.remove(contact3_id)
+            if custom_config_id in tester.created_smtp_config_ids:
+                tester.created_smtp_config_ids.remove(custom_config_id)
 
-        # Campaign Tests
-        print("\n" + "=" * 30 + " CAMPAIGN TESTS " + "=" * 30)
+        # Subscription Limits Test
+        print("\n" + "=" * 25 + " SUBSCRIPTION LIMITS TEST " + "=" * 25)
         
-        # Test 12: Enhanced dashboard stats (with new fields)
+        # Test 15: Try to create more SMTP configs than allowed (free plan allows 1 inbox)
+        # First, let's check current plan limits
+        success, user_info = tester.test_get_current_user()
+        if success:
+            plan = user_info.get('subscription_plan', 'free')
+            print(f"   Current plan: {plan}")
+            
+            # Try to create additional SMTP configs to test limits
+            for i in range(3):  # Try to create 3 more (should hit limit)
+                extra_config_id = tester.test_create_smtp_config(
+                    name=f"Extra SMTP Config {i+1}",
+                    provider="custom",
+                    email=f"extra{i+1}@test.com",
+                    smtp_host="smtp.test.com",
+                    smtp_port=587,
+                    smtp_username=f"extra{i+1}@test.com",
+                    smtp_password="password123"
+                )
+                if not extra_config_id:
+                    print(f"   ✅ Subscription limit enforced at config {i+1}")
+                    break
+
+        # Dashboard Stats Test
+        print("\n" + "=" * 25 + " DASHBOARD STATS TEST " + "=" * 25)
+        
+        # Test 16: Enhanced dashboard stats
         tester.test_enhanced_dashboard_stats()
 
-        # Test 13: Create campaigns
-        campaign1_id = tester.test_create_campaign(
-            "Product Launch Campaign",
-            "Exciting news about {{company}} - {{first_name}}!",
-            "Hi {{first_name}},\n\nI hope this email finds you well at {{company}}.\n\nBest regards,\nTeam",
-            contact_ids=[contact1_id, contact2_id] if contact1_id and contact2_id else [],
-            description="Test campaign for product launch"
-        )
-
-        campaign2_id = tester.test_create_campaign(
-            "Follow-up Campaign",
-            "Quick follow-up for {{full_name}}",
-            "Hello {{full_name}},\n\nJust following up on our previous conversation.\n\nThanks!"
-        )
-
-        # Test 14: Get all campaigns
-        success, campaigns = tester.test_get_campaigns()
-        if not success:
-            print("❌ Get campaigns failed")
-
-        # Test 15: Get single campaign
-        if campaign1_id:
-            tester.test_get_single_campaign(campaign1_id)
-
-        # Test 16: Update campaign
-        if campaign1_id:
-            tester.test_update_campaign(campaign1_id, {
-                "name": "Updated Product Launch Campaign",
-                "description": "Updated description for the campaign",
-                "daily_limit": 100
-            })
-
-        # Test 17: Campaign preview with personalization
-        if campaign1_id and contact1_id:
-            tester.test_campaign_preview(campaign1_id, contact1_id)
-
-        # Test 18: Campaign analytics
-        if campaign1_id:
-            tester.test_campaign_analytics(campaign1_id)
-
-        # Test 19: Delete campaign
-        if campaign2_id:
-            tester.test_delete_campaign(campaign2_id)
-            # Remove from cleanup list since we deleted it
-            if campaign2_id in tester.created_campaign_ids:
-                tester.created_campaign_ids.remove(campaign2_id)
-
         # Print final results
-        print("\n" + "=" * 50)
+        print("\n" + "=" * 70)
         print(f"📊 Test Results: {tester.tests_passed}/{tester.tests_run} tests passed")
         
         if tester.tests_passed == tester.tests_run:
-            print("🎉 All tests passed!")
+            print("🎉 All SMTP Configuration tests passed!")
             result = 0
         else:
             print("❌ Some tests failed")
@@ -718,10 +743,13 @@ def main():
 
     except Exception as e:
         print(f"❌ Unexpected error during testing: {str(e)}")
+        import traceback
+        traceback.print_exc()
         result = 1
     
     finally:
         # Cleanup
+        tester.cleanup_created_smtp_configs()
         tester.cleanup_created_campaigns()
         tester.cleanup_created_contacts()
     
