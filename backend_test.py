@@ -980,8 +980,275 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
             except Exception as e:
                 print(f"   ❌ Error deleting contact {contact_id}: {str(e)}")
 
+    def test_jwt_authentication_comprehensive(self):
+        """Comprehensive JWT authentication testing to identify invalid token errors"""
+        print(f"\n🔍 Testing JWT Authentication System Comprehensively...")
+        
+        # Test 1: Basic Authentication Flow
+        print(f"\n   Test 1: Basic Authentication Flow")
+        test_email = f"jwttest_{datetime.now().strftime('%Y%m%d_%H%M%S')}@example.com"
+        test_password = "SecureJWTTest123!"
+        test_name = "JWT Test User"
+        
+        # Register user
+        success1, user_data = self.test_user_registration(test_email, test_password, test_name)
+        if not success1:
+            print(f"   ❌ User registration failed")
+            return False
+        
+        # Login and get token
+        success2, login_data = self.test_user_login(test_email, test_password)
+        if not success2:
+            print(f"   ❌ User login failed")
+            return False
+        
+        original_token = self.auth_token
+        print(f"   ✅ JWT token obtained: {original_token[:20]}...")
+        
+        # Test 2: Token Format Validation
+        print(f"\n   Test 2: Token Format Validation")
+        if original_token and len(original_token.split('.')) == 3:
+            print(f"   ✅ JWT token has correct format (3 parts)")
+        else:
+            print(f"   ❌ JWT token format is invalid")
+            return False
+        
+        # Test 3: Valid Token Access to Protected Endpoints
+        print(f"\n   Test 3: Valid Token Access to Protected Endpoints")
+        protected_endpoints = [
+            ("auth/me", "GET"),
+            ("contacts", "GET"),
+            ("smtp-configs", "GET"),
+            ("stats/dashboard", "GET"),
+            ("subscription/plans", "GET")
+        ]
+        
+        valid_token_tests = []
+        for endpoint, method in protected_endpoints:
+            success, response = self.run_test(
+                f"Protected Access - {endpoint}",
+                method,
+                endpoint,
+                200,
+                auth_required=True
+            )
+            valid_token_tests.append(success)
+            if not success:
+                print(f"   ❌ Failed to access {endpoint} with valid token")
+        
+        if all(valid_token_tests):
+            print(f"   ✅ All protected endpoints accessible with valid token")
+        else:
+            print(f"   ❌ Some protected endpoints failed with valid token")
+        
+        # Test 4: Invalid Token Tests
+        print(f"\n   Test 4: Invalid Token Tests")
+        
+        # Save original token
+        original_token = self.auth_token
+        
+        # Test 4a: Malformed token
+        print(f"\n     Test 4a: Malformed Token")
+        self.auth_token = "invalid.malformed.token"
+        success4a, response4a = self.run_test(
+            "Malformed Token Test",
+            "GET",
+            "auth/me",
+            401,
+            auth_required=True
+        )
+        if success4a:
+            print(f"   ✅ Malformed token correctly rejected (401)")
+            print(f"   Response: {response4a.get('detail', 'No detail')}")
+        else:
+            print(f"   ❌ Malformed token not properly rejected")
+        
+        # Test 4b: Empty token
+        print(f"\n     Test 4b: Empty Token")
+        self.auth_token = ""
+        success4b, response4b = self.run_test(
+            "Empty Token Test",
+            "GET",
+            "auth/me",
+            401,
+            auth_required=True
+        )
+        if success4b:
+            print(f"   ✅ Empty token correctly rejected (401)")
+            print(f"   Response: {response4b.get('detail', 'No detail')}")
+        else:
+            print(f"   ❌ Empty token not properly rejected")
+        
+        # Test 4c: Missing Bearer prefix
+        print(f"\n     Test 4c: Missing Bearer Prefix")
+        headers = {'Authorization': original_token}  # Missing "Bearer " prefix
+        url = f"{self.api_url}/auth/me"
+        try:
+            response = requests.get(url, headers=headers)
+            success4c = response.status_code == 401
+            if success4c:
+                print(f"   ✅ Missing Bearer prefix correctly rejected (401)")
+                print(f"   Response: {response.json().get('detail', 'No detail') if response.text else 'No response'}")
+            else:
+                print(f"   ❌ Missing Bearer prefix not properly rejected (got {response.status_code})")
+        except Exception as e:
+            print(f"   ❌ Error testing missing Bearer prefix: {str(e)}")
+            success4c = False
+        
+        # Test 4d: Expired token simulation (modify token)
+        print(f"\n     Test 4d: Invalid Token Signature")
+        # Modify the last character of the token to simulate invalid signature
+        if original_token:
+            modified_token = original_token[:-1] + ('x' if original_token[-1] != 'x' else 'y')
+            self.auth_token = modified_token
+            success4d, response4d = self.run_test(
+                "Invalid Signature Token Test",
+                "GET",
+                "auth/me",
+                401,
+                auth_required=True
+            )
+            if success4d:
+                print(f"   ✅ Invalid signature token correctly rejected (401)")
+                print(f"   Response: {response4d.get('detail', 'No detail')}")
+            else:
+                print(f"   ❌ Invalid signature token not properly rejected")
+        else:
+            success4d = False
+        
+        # Test 5: Authorization Header Variations
+        print(f"\n   Test 5: Authorization Header Variations")
+        
+        # Test 5a: Case sensitivity
+        print(f"\n     Test 5a: Case Sensitivity")
+        headers_case = {'authorization': f'Bearer {original_token}'}  # lowercase
+        url = f"{self.api_url}/auth/me"
+        try:
+            response = requests.get(url, headers=headers_case)
+            success5a = response.status_code == 200
+            if success5a:
+                print(f"   ✅ Lowercase authorization header accepted")
+            else:
+                print(f"   ❌ Lowercase authorization header rejected (got {response.status_code})")
+        except Exception as e:
+            print(f"   ❌ Error testing case sensitivity: {str(e)}")
+            success5a = False
+        
+        # Test 5b: Extra spaces
+        print(f"\n     Test 5b: Extra Spaces in Header")
+        headers_spaces = {'Authorization': f'Bearer  {original_token}'}  # Extra space
+        try:
+            response = requests.get(url, headers=headers_spaces)
+            success5b = response.status_code == 401  # Should be rejected
+            if success5b:
+                print(f"   ✅ Extra spaces in Bearer token correctly rejected")
+            else:
+                print(f"   ❌ Extra spaces in Bearer token not properly handled (got {response.status_code})")
+        except Exception as e:
+            print(f"   ❌ Error testing extra spaces: {str(e)}")
+            success5b = False
+        
+        # Restore original token
+        self.auth_token = original_token
+        
+        # Test 6: Token Reuse and Persistence
+        print(f"\n   Test 6: Token Reuse and Persistence")
+        success6, response6 = self.run_test(
+            "Token Reuse Test",
+            "GET",
+            "auth/me",
+            200,
+            auth_required=True
+        )
+        if success6:
+            print(f"   ✅ Token can be reused successfully")
+            print(f"   User: {response6.get('email', 'Unknown')}")
+        else:
+            print(f"   ❌ Token reuse failed")
+        
+        # Test 7: Multiple Protected Endpoint Access
+        print(f"\n   Test 7: Multiple Protected Endpoint Access with Same Token")
+        multi_access_tests = []
+        for i, (endpoint, method) in enumerate(protected_endpoints[:3]):  # Test first 3
+            success, response = self.run_test(
+                f"Multi-Access Test {i+1} - {endpoint}",
+                method,
+                endpoint,
+                200,
+                auth_required=True
+            )
+            multi_access_tests.append(success)
+        
+        if all(multi_access_tests):
+            print(f"   ✅ Token works consistently across multiple endpoints")
+        else:
+            print(f"   ❌ Token inconsistent across multiple endpoints")
+        
+        # Test 8: CSV Upload with Authentication
+        print(f"\n   Test 8: CSV Upload with Authentication")
+        csv_content = """first_name,last_name,email,company,phone,tags
+JWT,Test,jwt.test@example.com,JWT Corp,555-0000,test"""
+        files = {'file': ('jwt_test.csv', csv_content, 'text/csv')}
+        success8, response8 = self.run_test(
+            "CSV Upload with JWT",
+            "POST",
+            "contacts/upload-csv",
+            200,
+            files=files,
+            auth_required=True
+        )
+        if success8:
+            print(f"   ✅ CSV upload works with JWT authentication")
+            print(f"   Contacts created: {response8.get('contacts_created', 0)}")
+        else:
+            print(f"   ❌ CSV upload failed with JWT authentication")
+        
+        # Test 9: SMTP Config with Authentication
+        print(f"\n   Test 9: SMTP Config with Authentication")
+        smtp_config_id = self.test_create_smtp_config(
+            name="JWT Test SMTP",
+            provider="gmail",
+            email="jwttest@gmail.com",
+            smtp_username="jwttest@gmail.com",
+            smtp_password="test_password",
+            daily_limit=100
+        )
+        success9 = smtp_config_id is not None
+        if success9:
+            print(f"   ✅ SMTP config creation works with JWT authentication")
+        else:
+            print(f"   ❌ SMTP config creation failed with JWT authentication")
+        
+        # Calculate overall success
+        all_tests = [
+            success1, success2, all(valid_token_tests), success4a, success4b, 
+            success4c, success4d, success5a, success5b, success6, 
+            all(multi_access_tests), success8, success9
+        ]
+        passed_tests = sum(all_tests)
+        total_tests = len(all_tests)
+        
+        print(f"\n📊 JWT Authentication Test Results: {passed_tests}/{total_tests} tests passed")
+        
+        # Detailed results
+        test_names = [
+            "User Registration", "User Login", "Valid Token Access", "Malformed Token Rejection",
+            "Empty Token Rejection", "Missing Bearer Rejection", "Invalid Signature Rejection",
+            "Case Sensitivity", "Extra Spaces Handling", "Token Reuse", "Multi-Endpoint Access",
+            "CSV Upload Auth", "SMTP Config Auth"
+        ]
+        
+        print(f"\n🔍 Detailed JWT Test Results:")
+        for i, (test_name, result) in enumerate(zip(test_names, all_tests)):
+            status = "✅ PASS" if result else "❌ FAIL"
+            print(f"   {i+1:2d}. {test_name}: {status}")
+        
+        return all(all_tests)
+
 def main():
-    print("🚀 Starting MailerPro API Tests - Focus on CSV Contact Import Functionality")
+    print("🚀 Starting MailerPro API Tests - Focus on JWT Authentication System")
+    print("=" * 70)
+    print("🎯 Testing JWT authentication to identify 'invalid token' errors")
     print("=" * 70)
     
     tester = MailerProAPITester()
@@ -992,117 +1259,129 @@ def main():
             print("❌ Root endpoint failed, stopping tests")
             return 1
 
-        # Authentication Tests
-        print("\n" + "=" * 25 + " AUTHENTICATION TESTS " + "=" * 25)
+        # JWT AUTHENTICATION TESTS - PRIMARY FOCUS
+        print("\n" + "=" * 25 + " JWT AUTHENTICATION TESTS " + "=" * 25)
         
-        # Test 2: User Registration
-        test_email = f"csvtester_{datetime.now().strftime('%Y%m%d_%H%M%S')}@example.com"
-        test_password = "SecurePassword123!"
-        test_name = "CSV Test User"
+        # Comprehensive JWT testing
+        jwt_success = tester.test_jwt_authentication_comprehensive()
         
-        success, user_data = tester.test_user_registration(test_email, test_password, test_name)
-        if not success:
-            print("❌ User registration failed, stopping tests")
-            return 1
-
-        # Test 3: User Login
-        success, login_data = tester.test_user_login(test_email, test_password)
-        if not success:
-            print("❌ User login failed, stopping tests")
-            return 1
-
-        # Test 4: Get current user info and check subscription limits
-        success, user_info = tester.test_get_current_user()
-        if success:
-            plan = user_info.get('subscription_plan', 'free')
-            print(f"   Current subscription plan: {plan}")
-
-        # Check initial contact count
-        print("\n" + "=" * 25 + " INITIAL STATE CHECK " + "=" * 25)
-        success, initial_contacts = tester.test_get_contacts()
-        initial_count = len(initial_contacts) if success else 0
-        print(f"   Initial contact count: {initial_count}")
-
-        # CSV IMPORT TESTS - PRIMARY FOCUS
-        print("\n" + "=" * 25 + " CSV CONTACT IMPORT TESTS " + "=" * 25)
+        # Additional specific tests for common issues
+        print("\n" + "=" * 25 + " ADDITIONAL AUTH TESTS " + "=" * 25)
         
-        # Test 5: Comprehensive CSV Upload Testing
-        csv_success = tester.test_csv_upload_comprehensive()
+        # Test token with different endpoints that users commonly access
+        print(f"\n🔍 Testing Common User Endpoints...")
         
-        # Test 6: Invalid CSV file format (should fail)
-        print(f"\n🔍 Testing Invalid CSV File Format...")
-        success6, response6 = tester.test_invalid_csv_upload()
+        # Create a fresh user for endpoint testing
+        test_email = f"endpointtest_{datetime.now().strftime('%Y%m%d_%H%M%S')}@example.com"
+        test_password = "EndpointTest123!"
+        test_name = "Endpoint Test User"
         
-        # Test 7: Verify final contact count after all CSV imports
-        print(f"\n🔍 Verifying Final Contact Count...")
-        success7, final_contacts = tester.test_get_contacts()
-        final_count = len(final_contacts) if success7 else 0
-        contacts_added = final_count - initial_count
-        print(f"   Final contact count: {final_count}")
-        print(f"   Contacts added via CSV: {contacts_added}")
+        success_reg, _ = tester.test_user_registration(test_email, test_password, test_name)
+        success_login, _ = tester.test_user_login(test_email, test_password)
         
-        # Test 8: Search functionality with imported contacts
-        print(f"\n🔍 Testing Search with Imported Contacts...")
-        search_terms = ['john', 'jane', 'acme', 'tech']
-        search_results = {}
-        for term in search_terms:
-            success_search, results = tester.test_get_contacts_with_search(term)
-            if success_search:
-                search_results[term] = len(results)
-                print(f"   Search '{term}': {len(results)} results")
-        
-        # Test 9: Dashboard stats after CSV import
-        print(f"\n🔍 Testing Dashboard Stats After CSV Import...")
-        success9, stats = tester.test_enhanced_dashboard_stats()
-        if success9:
-            print(f"   Total contacts in stats: {stats.get('total_contacts', 0)}")
-            print(f"   Recent contacts: {stats.get('recent_contacts', 0)}")
-
-        # Test 10: Subscription limits check
-        print(f"\n🔍 Testing Subscription Limits...")
-        success10, user_info = tester.test_get_current_user()
-        if success10:
-            plan = user_info.get('subscription_plan', 'free')
-            print(f"   Current plan: {plan}")
+        if success_reg and success_login:
+            # Test dashboard stats (commonly accessed)
+            success_dashboard, dashboard_response = tester.test_dashboard_stats()
             
-            # Check if we're approaching limits
-            if success9:
-                total_contacts = stats.get('total_contacts', 0)
-                subscription_info = stats.get('subscription', {})
-                limits = subscription_info.get('limits', {})
-                contact_limit = limits.get('contacts', {}).get('limit', 100)
-                print(f"   Contact usage: {total_contacts}/{contact_limit}")
+            # Test subscription plans (commonly accessed)
+            success_plans, plans_response = tester.run_test(
+                "Subscription Plans Access",
+                "GET",
+                "subscription/plans",
+                200,
+                auth_required=False  # This endpoint might not require auth
+            )
+            
+            # Test current user info (commonly accessed)
+            success_me, me_response = tester.test_get_current_user()
+            
+            print(f"   Dashboard Stats: {'✅ PASS' if success_dashboard else '❌ FAIL'}")
+            print(f"   Subscription Plans: {'✅ PASS' if success_plans else '❌ FAIL'}")
+            print(f"   Current User Info: {'✅ PASS' if success_me else '❌ FAIL'}")
+            
+            # Test with a real CSV upload scenario
+            print(f"\n🔍 Testing Real-World CSV Upload Scenario...")
+            csv_content = """first_name,last_name,email,company,phone,tags
+Sarah,Johnson,sarah.johnson@company.com,Tech Solutions,555-1111,lead
+Mike,Davis,mike.davis@startup.com,Innovation Labs,555-2222,prospect
+Lisa,Wilson,lisa.wilson@enterprise.com,Big Corp,555-3333,customer"""
+            
+            files = {'file': ('real_test.csv', csv_content, 'text/csv')}
+            success_csv, csv_response = tester.run_test(
+                "Real CSV Upload Test",
+                "POST",
+                "contacts/upload-csv",
+                200,
+                files=files,
+                auth_required=True
+            )
+            
+            if success_csv:
+                print(f"   ✅ Real CSV upload successful")
+                print(f"   Contacts created: {csv_response.get('contacts_created', 0)}")
+            else:
+                print(f"   ❌ Real CSV upload failed")
+            
+            # Test SMTP config creation (commonly used)
+            print(f"\n🔍 Testing Real-World SMTP Config Creation...")
+            smtp_id = tester.test_create_smtp_config(
+                name="Production Gmail",
+                provider="gmail",
+                email="user@gmail.com",
+                smtp_username="user@gmail.com",
+                smtp_password="app_password_here",
+                daily_limit=300
+            )
+            
+            if smtp_id:
+                print(f"   ✅ SMTP config creation successful")
                 
-                if total_contacts >= contact_limit * 0.8:  # 80% of limit
-                    print(f"   ⚠️  Approaching contact limit!")
+                # Test SMTP config retrieval
+                success_smtp_get, smtp_response = tester.test_get_single_smtp_config(smtp_id)
+                print(f"   SMTP Config Retrieval: {'✅ PASS' if success_smtp_get else '❌ FAIL'}")
+                
+                # Test SMTP stats
+                success_stats, stats_response = tester.test_smtp_config_stats(smtp_id)
+                print(f"   SMTP Stats Access: {'✅ PASS' if success_stats else '❌ FAIL'}")
+            else:
+                print(f"   ❌ SMTP config creation failed")
 
         # Print final results
         print("\n" + "=" * 70)
         print(f"📊 Test Results: {tester.tests_passed}/{tester.tests_run} tests passed")
         
-        # Specific results for CSV import tests
-        print("\n🎯 CSV Import Test Results:")
-        print(f"   Comprehensive CSV Upload: {'✅ PASS' if csv_success else '❌ FAIL'}")
-        print(f"   Invalid CSV Rejection: {'✅ PASS' if success6 else '❌ FAIL'}")
-        print(f"   Contact Count Verification: {'✅ PASS' if success7 else '❌ FAIL'}")
-        print(f"   Search Functionality: {'✅ PASS' if all(search_results.values()) else '❌ FAIL'}")
-        print(f"   Dashboard Stats Update: {'✅ PASS' if success9 else '❌ FAIL'}")
+        # JWT-specific results
+        print("\n🎯 JWT Authentication Test Summary:")
+        print(f"   Comprehensive JWT Tests: {'✅ PASS' if jwt_success else '❌ FAIL'}")
         
-        csv_tests_passed = sum([csv_success, success6, success7, bool(search_results), success9])
-        print(f"\n📊 CSV Import Tests: {csv_tests_passed}/5 passed")
-        
-        # Summary of contacts imported
-        if contacts_added > 0:
-            print(f"\n✅ Successfully imported {contacts_added} contacts via CSV")
-            print(f"   Final database contains {final_count} total contacts")
+        if jwt_success:
+            print("\n✅ JWT Authentication System Analysis:")
+            print("   • User registration and login working correctly")
+            print("   • JWT tokens are properly formatted and validated")
+            print("   • Protected endpoints correctly require authentication")
+            print("   • Invalid tokens are properly rejected with 401 status")
+            print("   • Authorization header format is correctly enforced")
+            print("   • Token reuse and persistence working correctly")
+            print("   • CSV upload authentication working")
+            print("   • SMTP configuration authentication working")
+            print("\n🔍 No 'invalid token' errors found in the authentication system!")
+            print("   The JWT implementation appears to be working correctly.")
         else:
-            print(f"\n❌ No contacts were imported via CSV - this indicates an issue!")
+            print("\n❌ JWT Authentication Issues Found:")
+            print("   • Some authentication tests failed")
+            print("   • This may be the source of 'invalid token' errors")
+            print("   • Check the detailed test results above for specific failures")
         
-        if tester.tests_passed == tester.tests_run and csv_success:
-            print("🎉 All tests passed! CSV import functionality is working correctly.")
+        if tester.tests_passed == tester.tests_run and jwt_success:
+            print("\n🎉 All tests passed! JWT authentication system is working correctly.")
+            print("   If users are still getting 'invalid token' errors, the issue may be:")
+            print("   • Frontend not sending tokens correctly")
+            print("   • Token storage issues in browser")
+            print("   • Network/proxy issues modifying headers")
+            print("   • Race conditions in token usage")
             result = 0
         else:
-            print("❌ Some tests failed - CSV import functionality needs attention")
+            print("\n❌ Some tests failed - JWT authentication system needs attention")
             result = 1
 
     except Exception as e:
