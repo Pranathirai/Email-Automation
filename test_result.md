@@ -134,15 +134,18 @@ backend:
   
   - task: "User Subscription Limits & Plans"
     implemented: true
-    working: "NA"
+    working: true
     file: "server.py" 
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Subscription plans defined (free, pro, agency) with usage limits. Need to test with authenticated users."
+      - working: true
+        agent: "testing"
+        comment: "✅ Subscription system working correctly. Plans endpoint (/api/subscription/plans) returns all available plans (free, pro, agency) with proper limits. Free plan limits are enforced: 1 inbox limit properly blocks creation of additional SMTP configs. Dashboard stats show correct subscription information including plan name, limits, and usage counts. Users default to free plan on registration."
   
   - task: "SMTP Configuration System"
     implemented: true
