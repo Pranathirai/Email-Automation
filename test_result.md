@@ -211,6 +211,18 @@ frontend:
         agent: "main"
         comment: "Dashboard shows usage stats, subscription limits, and upgrade prompts. Connected to backend API."
   
+  - task: "SMTP Settings UI"
+    implemented: true
+    working: "NA"
+    file: "App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented complete SMTP settings interface with add/edit/delete/test functionality. Supports Gmail, Outlook, Custom SMTP with proper form validation and user limits display."
+
   - task: "Protected Routes & Auth Context"
     implemented: true
     working: "NA"
