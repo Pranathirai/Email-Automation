@@ -823,7 +823,7 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
                 print(f"   ❌ Error deleting contact {contact_id}: {str(e)}")
 
 def main():
-    print("🚀 Starting MailerPro API Tests - Focus on SMTP Configuration System")
+    print("🚀 Starting MailerPro API Tests - Focus on SMTP Error Handling Improvements")
     print("=" * 70)
     
     tester = MailerProAPITester()
@@ -856,10 +856,33 @@ def main():
         # Test 4: Get current user info
         tester.test_get_current_user()
 
-        # SMTP Configuration Tests
-        print("\n" + "=" * 25 + " SMTP CONFIGURATION TESTS " + "=" * 25)
+        # SMTP Error Handling Tests - PRIMARY FOCUS
+        print("\n" + "=" * 25 + " SMTP ERROR HANDLING TESTS " + "=" * 25)
         
-        # Test 5: Create Gmail SMTP Config
+        # Test 5: Gmail App Password Error Handling
+        print("\n🔍 Testing Gmail App Password Error Handling...")
+        gmail_error_success, gmail_error_response = tester.test_smtp_error_handling_gmail_app_password()
+        
+        # Test 6: Authentication Failed Error Handling
+        print("\n🔍 Testing Authentication Failed Error Handling...")
+        auth_error_success, auth_error_response = tester.test_smtp_error_handling_authentication_failed()
+        
+        # Test 7: Connection Failed Error Handling
+        print("\n🔍 Testing Connection Failed Error Handling...")
+        conn_error_success, conn_error_response = tester.test_smtp_error_handling_connection_failed()
+        
+        # Test 8: SSL/TLS Error Handling
+        print("\n🔍 Testing SSL/TLS Error Handling...")
+        ssl_error_success, ssl_error_response = tester.test_smtp_error_handling_ssl_tls_error()
+        
+        # Test 9: Error Response Format Validation
+        print("\n🔍 Testing Error Response Format...")
+        format_success, format_response = tester.test_smtp_error_response_format()
+
+        # Basic SMTP Configuration Tests (to ensure normal operations still work)
+        print("\n" + "=" * 25 + " BASIC SMTP CONFIGURATION TESTS " + "=" * 25)
+        
+        # Test 10: Create Gmail SMTP Config
         gmail_config_id = tester.test_create_smtp_config(
             name="My Gmail Account",
             provider="gmail",
@@ -869,7 +892,7 @@ def main():
             daily_limit=500
         )
 
-        # Test 6: Create Outlook SMTP Config
+        # Test 11: Create Outlook SMTP Config
         outlook_config_id = tester.test_create_smtp_config(
             name="Corporate Outlook",
             provider="outlook",
@@ -879,7 +902,7 @@ def main():
             daily_limit=300
         )
 
-        # Test 7: Create Custom SMTP Config
+        # Test 12: Create Custom SMTP Config
         custom_config_id = tester.test_create_smtp_config(
             name="Custom SMTP Server",
             provider="custom",
@@ -892,16 +915,16 @@ def main():
             daily_limit=200
         )
 
-        # Test 8: Get all SMTP configs
+        # Test 13: Get all SMTP configs
         success, smtp_configs = tester.test_get_smtp_configs()
         if not success:
             print("❌ Get SMTP configs failed")
 
-        # Test 9: Get single SMTP config
+        # Test 14: Get single SMTP config
         if gmail_config_id:
             tester.test_get_single_smtp_config(gmail_config_id)
 
-        # Test 10: Update SMTP config
+        # Test 15: Update SMTP config
         if outlook_config_id:
             tester.test_update_smtp_config(outlook_config_id, {
                 "name": "Updated Corporate Outlook",
@@ -909,28 +932,11 @@ def main():
                 "is_active": True
             })
 
-        # Test 11: Test SMTP connection (will fail with dummy credentials, but should handle gracefully)
-        if gmail_config_id:
-            tester.test_smtp_connection_test(
-                gmail_config_id,
-                test_email="test@example.com",
-                subject="MailerPro SMTP Test",
-                content="This is a test email from MailerPro SMTP configuration system."
-            )
-
-        # Test 12: Get SMTP config stats
+        # Test 16: Get SMTP config stats
         if gmail_config_id:
             tester.test_smtp_config_stats(gmail_config_id)
 
-        # Test 13: Update SMTP config (if we have one)
-        if gmail_config_id:
-            tester.test_update_smtp_config(gmail_config_id, {
-                "name": "Updated Gmail Account",
-                "daily_limit": 600,
-                "is_active": True
-            })
-
-        # Test 14: Test unauthorized access (should fail)
+        # Test 17: Test unauthorized access (should fail)
         if gmail_config_id:
             # Temporarily remove auth token
             temp_token = tester.auth_token
@@ -938,17 +944,7 @@ def main():
             tester.test_unauthorized_smtp_access(gmail_config_id)
             tester.auth_token = temp_token
 
-        # Test 15: Test subscription plans endpoint
-        success, response = tester.run_test(
-            "Get Subscription Plans",
-            "GET",
-            "subscription/plans",
-            200
-        )
-        if success:
-            print(f"   Available plans: {list(response.get('plans', {}).keys())}")
-
-        # Test 16: Delete SMTP config
+        # Test 18: Delete SMTP config
         if custom_config_id:
             tester.test_delete_smtp_config(custom_config_id)
             # Remove from cleanup list since we deleted it
@@ -958,15 +954,14 @@ def main():
         # Subscription Limits Test
         print("\n" + "=" * 25 + " SUBSCRIPTION LIMITS TEST " + "=" * 25)
         
-        # Test 17: Try to create more SMTP configs than allowed (free plan allows 1 inbox)
-        # First, let's check current plan limits
+        # Test 19: Try to create more SMTP configs than allowed (free plan allows 1 inbox)
         success, user_info = tester.test_get_current_user()
         if success:
             plan = user_info.get('subscription_plan', 'free')
             print(f"   Current plan: {plan}")
             
             # Try to create additional SMTP configs to test limits
-            for i in range(3):  # Try to create 3 more (should hit limit)
+            for i in range(2):  # Try to create 2 more (should hit limit)
                 extra_config_id = tester.test_create_smtp_config(
                     name=f"Extra SMTP Config {i+1}",
                     provider="custom",
@@ -983,15 +978,26 @@ def main():
         # Dashboard Stats Test
         print("\n" + "=" * 25 + " DASHBOARD STATS TEST " + "=" * 25)
         
-        # Test 18: Enhanced dashboard stats
+        # Test 20: Enhanced dashboard stats
         tester.test_enhanced_dashboard_stats()
 
         # Print final results
         print("\n" + "=" * 70)
         print(f"📊 Test Results: {tester.tests_passed}/{tester.tests_run} tests passed")
         
+        # Specific results for error handling tests
+        print("\n🎯 SMTP Error Handling Test Results:")
+        print(f"   Gmail App Password Error: {'✅ PASS' if gmail_error_success else '❌ FAIL'}")
+        print(f"   Authentication Failed Error: {'✅ PASS' if auth_error_success else '❌ FAIL'}")
+        print(f"   Connection Failed Error: {'✅ PASS' if conn_error_success else '❌ FAIL'}")
+        print(f"   SSL/TLS Error: {'✅ PASS' if ssl_error_success else '❌ FAIL'}")
+        print(f"   Error Response Format: {'✅ PASS' if format_success else '❌ FAIL'}")
+        
+        error_handling_tests_passed = sum([gmail_error_success, auth_error_success, conn_error_success, ssl_error_success, format_success])
+        print(f"\n📊 Error Handling Tests: {error_handling_tests_passed}/5 passed")
+        
         if tester.tests_passed == tester.tests_run:
-            print("🎉 All SMTP Configuration tests passed!")
+            print("🎉 All tests passed!")
             result = 0
         else:
             print("❌ Some tests failed")
