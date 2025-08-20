@@ -1068,6 +1068,433 @@ const Contacts = () => {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Create Campaign Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Campaign</DialogTitle>
+            <DialogDescription>
+              Build a multi-step email sequence with A/B testing and personalization
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            {/* Basic Info */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Campaign Details</h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="campaign_name">Campaign Name</Label>
+                  <Input
+                    id="campaign_name"
+                    placeholder="e.g., Welcome Series"
+                    value={newCampaign.name}
+                    onChange={(e) => setNewCampaign({...newCampaign, name: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="campaign_description">Description (Optional)</Label>
+                  <Input
+                    id="campaign_description"
+                    placeholder="Brief description"
+                    value={newCampaign.description}
+                    onChange={(e) => setNewCampaign({...newCampaign, description: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              {/* Settings */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="daily_limit">Daily Limit per Inbox</Label>
+                  <Input
+                    id="daily_limit"
+                    type="number"
+                    value={newCampaign.daily_limit_per_inbox}
+                    onChange={(e) => setNewCampaign({...newCampaign, daily_limit_per_inbox: parseInt(e.target.value) || 200})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="delay_min">Min Delay (seconds)</Label>
+                  <Input
+                    id="delay_min"
+                    type="number"
+                    value={newCampaign.delay_min_seconds}
+                    onChange={(e) => setNewCampaign({...newCampaign, delay_min_seconds: parseInt(e.target.value) || 300})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="delay_max">Max Delay (seconds)</Label>
+                  <Input
+                    id="delay_max"
+                    type="number"
+                    value={newCampaign.delay_max_seconds}
+                    onChange={(e) => setNewCampaign({...newCampaign, delay_max_seconds: parseInt(e.target.value) || 1800})}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="personalization"
+                    checked={newCampaign.personalization_enabled}
+                    onCheckedChange={(checked) => setNewCampaign({...newCampaign, personalization_enabled: checked})}
+                  />
+                  <Label htmlFor="personalization">Enable Personalization</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="ab_testing"
+                    checked={newCampaign.a_b_testing_enabled}
+                    onCheckedChange={(checked) => setNewCampaign({...newCampaign, a_b_testing_enabled: checked})}
+                  />
+                  <Label htmlFor="ab_testing">Enable A/B Testing</Label>
+                </div>
+              </div>
+            </div>
+
+            {/* Contact Selection */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Select Contacts ({selectedContacts.length} selected)</h3>
+              <div className="max-h-48 overflow-y-auto border rounded p-3">
+                {contacts.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    No contacts available. Add contacts first.
+                  </p>
+                ) : (
+                  contacts.map((contact) => (
+                    <div key={contact.id} className="flex items-center space-x-2 py-1">
+                      <Checkbox
+                        id={`contact_${contact.id}`}
+                        checked={selectedContacts.includes(contact.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedContacts([...selectedContacts, contact.id]);
+                          } else {
+                            setSelectedContacts(selectedContacts.filter(id => id !== contact.id));
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`contact_${contact.id}`} className="text-sm">
+                        {contact.first_name} {contact.last_name} ({contact.email})
+                        {contact.company && ` - ${contact.company}`}
+                      </Label>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* SMTP Selection */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Select Email Accounts ({selectedSmtpConfigs.length} selected)</h3>
+              <div className="max-h-32 overflow-y-auto border rounded p-3">
+                {smtpConfigs.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    No SMTP configurations available. Add email accounts first.
+                  </p>
+                ) : (
+                  smtpConfigs.map((smtp) => (
+                    <div key={smtp.id} className="flex items-center space-x-2 py-1">
+                      <Checkbox
+                        id={`smtp_${smtp.id}`}
+                        checked={selectedSmtpConfigs.includes(smtp.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedSmtpConfigs([...selectedSmtpConfigs, smtp.id]);
+                          } else {
+                            setSelectedSmtpConfigs(selectedSmtpConfigs.filter(id => id !== smtp.id));
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`smtp_${smtp.id}`} className="text-sm">
+                        {smtp.name} ({smtp.email}) - {smtp.provider}
+                      </Label>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Email Steps */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">Email Sequence ({newCampaign.steps.length} steps)</h3>
+                <Button variant="outline" size="sm" onClick={addStep}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Follow-up Step
+                </Button>
+              </div>
+
+              {newCampaign.steps.map((step, stepIndex) => (
+                <Card key={stepIndex} className="border-2">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-medium">
+                        {stepIndex === 0 ? 'Initial Email' : `Follow-up ${stepIndex} (${step.delay_days} days later)`}
+                      </h4>
+                      <div className="flex items-center space-x-2">
+                        {stepIndex > 0 && (
+                          <div className="flex items-center space-x-2">
+                            <Label>Delay (days):</Label>
+                            <Input
+                              type="number"
+                              className="w-20"
+                              value={step.delay_days}
+                              onChange={(e) => updateStep(stepIndex, 'delay_days', parseInt(e.target.value) || 0)}
+                            />
+                          </div>
+                        )}
+                        {newCampaign.steps.length > 1 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeStep(stepIndex)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Variations */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h5 className="font-medium">Email Variations ({step.variations.length})</h5>
+                        {newCampaign.a_b_testing_enabled && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => addVariation(stepIndex)}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Variation
+                          </Button>
+                        )}
+                      </div>
+
+                      {step.variations.map((variation, variationIndex) => (
+                        <div key={variationIndex} className="border rounded p-3 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <Input
+                              placeholder="Variation name"
+                              value={variation.name}
+                              onChange={(e) => updateVariation(stepIndex, variationIndex, 'name', e.target.value)}
+                              className="max-w-xs"
+                            />
+                            <div className="flex items-center space-x-2">
+                              {newCampaign.a_b_testing_enabled && (
+                                <>
+                                  <Label>Weight:</Label>
+                                  <Input
+                                    type="number"
+                                    className="w-16"
+                                    value={variation.weight}
+                                    onChange={(e) => updateVariation(stepIndex, variationIndex, 'weight', parseInt(e.target.value) || 50)}
+                                  />
+                                  <span>%</span>
+                                </>
+                              )}
+                              {step.variations.length > 1 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeVariation(stepIndex, variationIndex)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <Label>Subject Line</Label>
+                            <div className="flex space-x-2">
+                              <Input
+                                placeholder="Email subject with {{variables}}"
+                                value={variation.subject}
+                                onChange={(e) => updateVariation(stepIndex, variationIndex, 'subject', e.target.value)}
+                              />
+                              <Select onValueChange={(value) => insertVariable(stepIndex, variationIndex, 'subject', value)}>
+                                <SelectTrigger className="w-32">
+                                  <SelectValue placeholder="Variable" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="first_name">First Name</SelectItem>
+                                  <SelectItem value="last_name">Last Name</SelectItem>
+                                  <SelectItem value="company">Company</SelectItem>
+                                  <SelectItem value="email">Email</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <Label>Email Content</Label>
+                            <div className="space-y-2">
+                              <Textarea
+                                placeholder="Email content with {{variables}} for personalization"
+                                value={variation.content}
+                                onChange={(e) => updateVariation(stepIndex, variationIndex, 'content', e.target.value)}
+                                rows={6}
+                              />
+                              <div className="flex space-x-2">
+                                <Select onValueChange={(value) => insertVariable(stepIndex, variationIndex, 'content', value)}>
+                                  <SelectTrigger className="w-40">
+                                    <SelectValue placeholder="Insert Variable" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="first_name">{{first_name}}</SelectItem>
+                                    <SelectItem value="last_name">{{last_name}}</SelectItem>
+                                    <SelectItem value="full_name">{{full_name}}</SelectItem>
+                                    <SelectItem value="company">{{company}}</SelectItem>
+                                    <SelectItem value="email">{{email}}</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    // Preview functionality would go here
+                                    toast({
+                                      title: "Preview",
+                                      description: "Preview with first available contact",
+                                    });
+                                  }}
+                                >
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  Preview
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Variable Help */}
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="pt-4">
+                <h4 className="font-medium text-blue-800 mb-2">💡 Available Variables</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm text-blue-700">
+                  <div><code>{{first_name}}</code> - Contact's first name</div>
+                  <div><code>{{last_name}}</code> - Contact's last name</div>
+                  <div><code>{{full_name}}</code> - Full name</div>
+                  <div><code>{{company}}</code> - Company name</div>
+                  <div><code>{{email}}</code> - Email address</div>
+                  <div><code>{{phone}}</code> - Phone number</div>
+                </div>
+                <p className="text-xs text-blue-600 mt-2">
+                  Example: "Hi {{first_name}}, I noticed {{company}} might benefit from..."
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <DialogFooter className="mt-6">
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleCreateCampaign}
+              disabled={!newCampaign.name || selectedContacts.length === 0 || selectedSmtpConfigs.length === 0}
+            >
+              Create Campaign
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Analytics Dialog */}
+      <Dialog open={showAnalyticsDialog} onOpenChange={setShowAnalyticsDialog}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Campaign Analytics</DialogTitle>
+            <DialogDescription>
+              Performance breakdown with A/B testing results
+            </DialogDescription>
+          </DialogHeader>
+          
+          {analytics && (
+            <div className="space-y-6">
+              {/* Overall Stats */}
+              <div>
+                <h3 className="font-medium mb-3">Overall Performance</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <div className="text-2xl font-bold">{analytics.overall?.total_emails || 0}</div>
+                      <div className="text-sm text-muted-foreground">Sent</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <div className="text-2xl font-bold text-green-600">{analytics.overall?.open_rate || 0}%</div>
+                      <div className="text-sm text-muted-foreground">Open Rate</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <div className="text-2xl font-bold text-blue-600">{analytics.overall?.click_rate || 0}%</div>
+                      <div className="text-sm text-muted-foreground">Click Rate</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <div className="text-2xl font-bold text-purple-600">{analytics.overall?.reply_rate || 0}%</div>
+                      <div className="text-sm text-muted-foreground">Reply Rate</div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+
+              {/* A/B Testing Breakdown */}
+              {analytics.ab_testing && analytics.ab_testing.length > 0 && (
+                <div>
+                  <h3 className="font-medium mb-3">A/B Testing Results</h3>
+                  <div className="space-y-3">
+                    {analytics.ab_testing.map((variation, index) => (
+                      <Card key={index}>
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-medium">{variation.variation_name}</h4>
+                            <Badge variant="outline">{variation.sent} sent</Badge>
+                          </div>
+                          <div className="grid grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <div className="font-medium text-green-600">{variation.open_rate}%</div>
+                              <div className="text-muted-foreground">Open Rate</div>
+                            </div>
+                            <div>
+                              <div className="font-medium text-blue-600">{variation.click_rate}%</div>
+                              <div className="text-muted-foreground">Click Rate</div>
+                            </div>
+                            <div>
+                              <div className="font-medium text-purple-600">{variation.reply_rate}%</div>
+                              <div className="text-muted-foreground">Reply Rate</div>
+                            </div>
+                            <div>
+                              <div className="font-medium">{variation.delivery_rate}%</div>
+                              <div className="text-muted-foreground">Delivery Rate</div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
