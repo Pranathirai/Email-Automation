@@ -262,7 +262,6 @@ metadata:
 test_plan:
   current_focus:
     - "Stripe Subscription Integration"
-    - "Database Schema & Models"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
