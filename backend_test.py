@@ -16,10 +16,14 @@ class MailerProAPITester:
         self.auth_token = None
         self.current_user = None
 
-    def run_test(self, name, method, endpoint, expected_status, data=None, files=None):
+    def run_test(self, name, method, endpoint, expected_status, data=None, files=None, auth_required=False):
         """Run a single API test"""
         url = f"{self.api_url}/{endpoint}"
         headers = {'Content-Type': 'application/json'} if not files else {}
+        
+        # Add auth header if required and available
+        if auth_required and self.auth_token:
+            headers['Authorization'] = f'Bearer {self.auth_token}'
 
         self.tests_run += 1
         print(f"\n🔍 Testing {name}...")
@@ -30,7 +34,7 @@ class MailerProAPITester:
                 response = requests.get(url, headers=headers)
             elif method == 'POST':
                 if files:
-                    response = requests.post(url, files=files)
+                    response = requests.post(url, files=files, headers=headers if auth_required else {})
                 else:
                     response = requests.post(url, json=data, headers=headers)
             elif method == 'PUT':
