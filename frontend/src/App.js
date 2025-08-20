@@ -566,6 +566,353 @@ const Campaigns = () => {
   );
 };
 
+// SMTP Configuration Component
+const SMTPConfigs = () => {
+  const [configs, setConfigs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [testingConfig, setTestingConfig] = useState(null);
+  const [testEmail, setTestEmail] = useState('');
+  const [newConfig, setNewConfig] = useState({
+    name: '',
+    provider: 'custom',
+    smtp_host: '',
+    smtp_port: 587,
+    username: '',
+    password: '',
+    daily_limit: 100,
+    use_tls: true
+  });
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchConfigs();
+  }, []);
+
+  const fetchConfigs = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${API}/smtp-configs`);
+      setConfigs(response.data);
+    } catch (error) {
+      console.error('Error fetching SMTP configs:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch SMTP configurations",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddConfig = async () => {
+    try {
+      await axios.post(`${API}/smtp-configs`, newConfig);
+      
+      toast({
+        title: "Success",
+        description: "SMTP configuration added successfully",
+      });
+      
+      setShowAddDialog(false);
+      setNewConfig({
+        name: '',
+        provider: 'custom',
+        smtp_host: '',
+        smtp_port: 587,
+        username: '',
+        password: '',
+        daily_limit: 100,
+        use_tls: true
+      });
+      
+      fetchConfigs();
+    } catch (error) {
+      console.error('Error adding SMTP config:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to add SMTP configuration",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleTestConfig = async (configId) => {
+    if (!testEmail) {
+      toast({
+        title: "Error",
+        description: "Please enter a test email address",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setTestingConfig(configId);
+    try {
+      const response = await axios.post(`${API}/smtp-configs/${configId}/test?test_email=${encodeURIComponent(testEmail)}`);
+      
+      if (response.data.success) {
+        toast({
+          title: "Success",
+          description: "Test email sent successfully!",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: response.data.error || "Failed to send test email",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error testing SMTP config:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to test SMTP configuration",
+        variant: "destructive"
+      });
+    } finally {
+      setTestingConfig(null);
+    }
+  };
+
+  const getProviderBadge = (provider) => {
+    const providerConfig = {
+      gmail: { variant: "default", label: "Gmail OAuth", color: "bg-red-100 text-red-800" },
+      outlook: { variant: "default", label: "Outlook OAuth", color: "bg-blue-100 text-blue-800" },
+      custom: { variant: "secondary", label: "Custom SMTP", color: "bg-gray-100 text-gray-800" }
+    };
+    
+    const config = providerConfig[provider] || providerConfig.custom;
+    return <Badge variant={config.variant} className={config.color}>{config.label}</Badge>;
+  };
+
+  return (
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">SMTP Configurations</h2>
+          <p className="text-muted-foreground">
+            Manage your email sending accounts
+          </p>
+        </div>
+        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Add SMTP Config
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Add SMTP Configuration</DialogTitle>
+              <DialogDescription>
+                Configure an email account for sending campaigns.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="config_name">Configuration Name</Label>
+                <Input
+                  id="config_name"
+                  value={newConfig.name}
+                  onChange={(e) => setNewConfig({...newConfig, name: e.target.value})}
+                  placeholder="e.g., My Gmail Account"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="provider">Provider</Label>
+                <Select value={newConfig.provider} onValueChange={(value) => setNewConfig({...newConfig, provider: value})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gmail">Gmail OAuth (Coming Soon)</SelectItem>
+                    <SelectItem value="outlook">Outlook OAuth (Coming Soon)</SelectItem>
+                    <SelectItem value="custom">Custom SMTP</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {newConfig.provider === 'custom' && (
+                <>
+                  <div className="grid gap-2">
+                    <Label htmlFor="smtp_host">SMTP Host</Label>
+                    <Input
+                      id="smtp_host"
+                      value={newConfig.smtp_host}
+                      onChange={(e) => setNewConfig({...newConfig, smtp_host: e.target.value})}
+                      placeholder="e.g., smtp.gmail.com"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="smtp_port">SMTP Port</Label>
+                    <Input
+                      id="smtp_port"
+                      type="number"
+                      value={newConfig.smtp_port}
+                      onChange={(e) => setNewConfig({...newConfig, smtp_port: parseInt(e.target.value) || 587})}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="username">Username/Email</Label>
+                    <Input
+                      id="username"
+                      value={newConfig.username}
+                      onChange={(e) => setNewConfig({...newConfig, username: e.target.value})}
+                      placeholder="your-email@domain.com"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="password">Password/App Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={newConfig.password}
+                      onChange={(e) => setNewConfig({...newConfig, password: e.target.value})}
+                      placeholder="Your email password"
+                    />
+                  </div>
+                </>
+              )}
+              <div className="grid gap-2">
+                <Label htmlFor="daily_limit">Daily Sending Limit</Label>
+                <Input
+                  id="daily_limit"
+                  type="number"
+                  value={newConfig.daily_limit}
+                  onChange={(e) => setNewConfig({...newConfig, daily_limit: parseInt(e.target.value) || 100})}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" onClick={handleAddConfig}>Add Configuration</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <Card>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Provider</TableHead>
+                <TableHead>Username</TableHead>
+                <TableHead>Daily Limit</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    Loading SMTP configurations...
+                  </TableCell>
+                </TableRow>
+              ) : configs.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    <div className="flex flex-col items-center gap-2">
+                      <Settings className="h-8 w-8 text-muted-foreground" />
+                      <p className="text-lg font-medium">No SMTP configurations</p>
+                      <p className="text-muted-foreground">Add an email account to start sending campaigns</p>
+                      <Button className="mt-2" onClick={() => setShowAddDialog(true)}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add SMTP Config
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                configs.map((config) => (
+                  <TableRow key={config.id}>
+                    <TableCell className="font-medium">{config.name}</TableCell>
+                    <TableCell>{getProviderBadge(config.provider)}</TableCell>
+                    <TableCell>{config.username}</TableCell>
+                    <TableCell>{config.daily_limit}/day</TableCell>
+                    <TableCell>
+                      <Badge variant={config.is_active ? "default" : "secondary"}>
+                        {config.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="test@example.com"
+                          value={testEmail}
+                          onChange={(e) => setTestEmail(e.target.value)}
+                          className="w-40"
+                        />
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleTestConfig(config.id)}
+                          disabled={testingConfig === config.id}
+                        >
+                          {testingConfig === config.id ? 'Testing...' : 'Test'}
+                        </Button>
+                        <Button variant="ghost" size="sm">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>SMTP Provider Recommendations</CardTitle>
+          <CardDescription>
+            Best email providers for cold outreach deliverability in 2025
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="border rounded-lg p-4">
+              <h4 className="font-semibold mb-2">🚀 ColdSend.pro (Recommended)</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                No warm-up required. 100 high-deliverability inboxes.
+              </p>
+              <p className="text-xs">$50/month • 10,000 emails • Immediate deployment</p>
+            </div>
+            <div className="border rounded-lg p-4">
+              <h4 className="font-semibold mb-2">📧 SendGrid</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                Robust infrastructure with flexible APIs.
+              </p>
+              <p className="text-xs">$19.95/month • 50,000 emails • Advanced analytics</p>
+            </div>
+            <div className="border rounded-lg p-4">
+              <h4 className="font-semibold mb-2">🎯 Mailgun</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                Developer-friendly with email validation.
+              </p>
+              <p className="text-xs">$15/month • 10,000 emails • Real-time analytics</p>
+            </div>
+            <div className="border rounded-lg p-4">
+              <h4 className="font-semibold mb-2">☁️ Amazon SES</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                Cost-effective for AWS users.
+              </p>
+              <p className="text-xs">$0.10 per 1,000 emails • High scalability</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 // Campaign Form Component
 const CampaignForm = ({ isEdit = false }) => {
   const { id } = useParams();
