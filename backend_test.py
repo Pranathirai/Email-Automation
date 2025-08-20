@@ -12,6 +12,9 @@ class MailerProAPITester:
         self.tests_passed = 0
         self.created_contact_ids = []
         self.created_campaign_ids = []
+        self.created_smtp_config_ids = []
+        self.auth_token = None
+        self.current_user = None
 
     def run_test(self, name, method, endpoint, expected_status, data=None, files=None):
         """Run a single API test"""
