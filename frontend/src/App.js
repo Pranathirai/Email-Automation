@@ -1270,11 +1270,11 @@ const SMTPConfigs = () => {
               <div>
                 <h4 className="font-medium text-blue-800">Email Account Usage</h4>
                 <p className="text-sm text-blue-700">
-                  You can connect up to {user.subscription_plan === 'free' ? '1' : user.subscription_plan === 'pro' ? '5' : '25'} email accounts
+                  Add unlimited email accounts on all plans
                 </p>
               </div>
               <Badge variant="secondary">
-                {smtpConfigs.length} / {user.subscription_plan === 'free' ? '1' : user.subscription_plan === 'pro' ? '5' : '25'} accounts
+                {smtpConfigs.length} accounts connected
               </Badge>
             </div>
           </CardContent>
