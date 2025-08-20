@@ -884,7 +884,8 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
             "Get All Campaigns",
             "GET",
             "campaigns",
-            200
+            200,
+            auth_required=True
         )
         if success and isinstance(response, list):
             print(f"   Found {len(response)} campaigns")
