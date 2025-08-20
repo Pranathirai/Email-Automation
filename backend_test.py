@@ -896,7 +896,8 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
             f"Get Single Campaign",
             "GET",
             f"campaigns/{campaign_id}",
-            200
+            200,
+            auth_required=True
         )
         return success, response
 
@@ -907,7 +908,8 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
             "PUT",
             f"campaigns/{campaign_id}",
             200,
-            data=update_data
+            data=update_data,
+            auth_required=True
         )
         return success
 
@@ -917,7 +919,8 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
             f"Delete Campaign",
             "DELETE",
             f"campaigns/{campaign_id}",
-            200
+            200,
+            auth_required=True
         )
         return success
 
