@@ -24,7 +24,7 @@ python-multipart>=0.0.9
 jq>=1.6.0
 typer>=0.9.0
 aiosmtplib>=3.0.0
-email-mime>=0.1.0
+
 premailer>=3.10.0
 google-auth-oauthlib>=1.0.0
 msal>=1.26.0
