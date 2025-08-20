@@ -1074,24 +1074,467 @@ const Contacts = () => {
 
 // Placeholder for other components (keep existing implementations)
 const Campaigns = () => {
+  const [campaigns, setCampaigns] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [smtpConfigs, setSmtpConfigs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [showAnalyticsDialog, setShowAnalyticsDialog] = useState(false);
+  const [currentCampaign, setCurrentCampaign] = useState(null);
+  const [selectedContacts, setSelectedContacts] = useState([]);
+  const [selectedSmtpConfigs, setSelectedSmtpConfigs] = useState([]);
+  const [availableVariables, setAvailableVariables] = useState([]);
+  const [previewData, setPreviewData] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
+  const [newCampaign, setNewCampaign] = useState({
+    name: '',
+    description: '',
+    steps: [
+      {
+        sequence_order: 1,
+        delay_days: 0,
+        variations: [
+          {
+            name: 'Variation A',
+            subject: '',
+            content: '',
+            weight: 100
+          }
+        ]
+      }
+    ],
+    daily_limit_per_inbox: 200,
+    delay_min_seconds: 300,
+    delay_max_seconds: 1800,
+    personalization_enabled: true,
+    a_b_testing_enabled: false
+  });
+  const { toast } = useToast();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    fetchCampaigns();
+    fetchContacts();
+    fetchSmtpConfigs();
+    fetchAvailableVariables();
+  }, []);
+
+  const fetchCampaigns = async () => {
+    try {
+      const response = await axios.get(`${API}/campaigns`);
+      setCampaigns(response.data);
+    } catch (error) {
+      console.error('Error fetching campaigns:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch campaigns",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const fetchContacts = async () => {
+    try {
+      const response = await axios.get(`${API}/contacts`);
+      setContacts(response.data);
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+    }
+  };
+
+  const fetchSmtpConfigs = async () => {
+    try {
+      const response = await axios.get(`${API}/smtp-configs`);
+      setSmtpConfigs(response.data.filter(config => config.is_active));
+    } catch (error) {
+      console.error('Error fetching SMTP configs:', error);
+    }
+  };
+
+  const fetchAvailableVariables = async () => {
+    try {
+      const response = await axios.get(`${API}/templates/variables`);
+      setAvailableVariables(response.data);
+    } catch (error) {
+      console.error('Error fetching variables:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateCampaign = async () => {
+    try {
+      const campaignData = {
+        ...newCampaign,
+        contact_ids: selectedContacts,
+        smtp_config_ids: selectedSmtpConfigs
+      };
+      
+      await axios.post(`${API}/campaigns`, campaignData);
+      toast({
+        title: "Success",
+        description: "Campaign created successfully",
+      });
+      
+      setShowCreateDialog(false);
+      resetNewCampaign();
+      fetchCampaigns();
+    } catch (error) {
+      console.error('Error creating campaign:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to create campaign",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const resetNewCampaign = () => {
+    setNewCampaign({
+      name: '',
+      description: '',
+      steps: [
+        {
+          sequence_order: 1,
+          delay_days: 0,
+          variations: [
+            {
+              name: 'Variation A',
+              subject: '',
+              content: '',
+              weight: 100
+            }
+          ]
+        }
+      ],
+      daily_limit_per_inbox: 200,
+      delay_min_seconds: 300,
+      delay_max_seconds: 1800,
+      personalization_enabled: true,
+      a_b_testing_enabled: false
+    });
+    setSelectedContacts([]);
+    setSelectedSmtpConfigs([]);
+  };
+
+  const addStep = () => {
+    const newStep = {
+      sequence_order: newCampaign.steps.length + 1,
+      delay_days: 3, // Default 3 days for follow-up
+      variations: [
+        {
+          name: 'Variation A',
+          subject: '',
+          content: '',
+          weight: 100
+        }
+      ]
+    };
+    setNewCampaign({
+      ...newCampaign,
+      steps: [...newCampaign.steps, newStep]
+    });
+  };
+
+  const removeStep = (stepIndex) => {
+    if (newCampaign.steps.length > 1) {
+      const newSteps = newCampaign.steps.filter((_, index) => index !== stepIndex);
+      // Reorder sequence numbers
+      newSteps.forEach((step, index) => {
+        step.sequence_order = index + 1;
+      });
+      setNewCampaign({
+        ...newCampaign,
+        steps: newSteps
+      });
+    }
+  };
+
+  const addVariation = (stepIndex) => {
+    const newSteps = [...newCampaign.steps];
+    const currentVariations = newSteps[stepIndex].variations;
+    const newVariation = {
+      name: `Variation ${String.fromCharCode(65 + currentVariations.length)}`, // A, B, C, etc.
+      subject: '',
+      content: '',
+      weight: 50
+    };
+    
+    // Adjust weights for equal distribution
+    const totalVariations = currentVariations.length + 1;
+    const equalWeight = Math.floor(100 / totalVariations);
+    
+    newSteps[stepIndex].variations = [
+      ...currentVariations.map(v => ({ ...v, weight: equalWeight })),
+      { ...newVariation, weight: equalWeight }
+    ];
+    
+    setNewCampaign({
+      ...newCampaign,
+      steps: newSteps
+    });
+  };
+
+  const removeVariation = (stepIndex, variationIndex) => {
+    const newSteps = [...newCampaign.steps];
+    if (newSteps[stepIndex].variations.length > 1) {
+      newSteps[stepIndex].variations = newSteps[stepIndex].variations.filter(
+        (_, index) => index !== variationIndex
+      );
+      // Redistribute weights equally
+      const totalVariations = newSteps[stepIndex].variations.length;
+      const equalWeight = Math.floor(100 / totalVariations);
+      newSteps[stepIndex].variations.forEach(v => v.weight = equalWeight);
+      
+      setNewCampaign({
+        ...newCampaign,
+        steps: newSteps
+      });
+    }
+  };
+
+  const updateStep = (stepIndex, field, value) => {
+    const newSteps = [...newCampaign.steps];
+    newSteps[stepIndex] = { ...newSteps[stepIndex], [field]: value };
+    setNewCampaign({
+      ...newCampaign,
+      steps: newSteps
+    });
+  };
+
+  const updateVariation = (stepIndex, variationIndex, field, value) => {
+    const newSteps = [...newCampaign.steps];
+    newSteps[stepIndex].variations[variationIndex] = {
+      ...newSteps[stepIndex].variations[variationIndex],
+      [field]: value
+    };
+    setNewCampaign({
+      ...newCampaign,
+      steps: newSteps
+    });
+  };
+
+  const insertVariable = (stepIndex, variationIndex, field, variable) => {
+    const currentValue = newCampaign.steps[stepIndex].variations[variationIndex][field];
+    const newValue = currentValue + `{{${variable}}}`;
+    updateVariation(stepIndex, variationIndex, field, newValue);
+  };
+
+  const previewPersonalization = async (template, contactId) => {
+    try {
+      const response = await axios.post(`${API}/campaigns/preview-demo/preview`, {
+        template,
+        contact_id: contactId
+      });
+      return response.data.personalized_content;
+    } catch (error) {
+      console.error('Error previewing personalization:', error);
+      return template;
+    }
+  };
+
+  const handleStartCampaign = async (campaignId) => {
+    try {
+      await axios.post(`${API}/campaigns/${campaignId}/start`);
+      toast({
+        title: "Success",
+        description: "Campaign started successfully",
+      });
+      fetchCampaigns();
+    } catch (error) {
+      console.error('Error starting campaign:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to start campaign",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handlePauseCampaign = async (campaignId) => {
+    try {
+      await axios.post(`${API}/campaigns/${campaignId}/pause`);
+      toast({
+        title: "Success",
+        description: "Campaign paused successfully",
+      });
+      fetchCampaigns();
+    } catch (error) {
+      console.error('Error pausing campaign:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to pause campaign",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const fetchAnalytics = async (campaignId) => {
+    try {
+      const response = await axios.get(`${API}/campaigns/${campaignId}/analytics`);
+      setAnalytics(response.data);
+      setShowAnalyticsDialog(true);
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      toast({
+        title: "Error", 
+        description: "Failed to fetch campaign analytics",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    const badges = {
+      draft: { variant: "secondary", label: "Draft", color: "gray" },
+      scheduled: { variant: "default", label: "Scheduled", color: "blue" },
+      sending: { variant: "default", label: "Sending", color: "green" },
+      sent: { variant: "outline", label: "Completed", color: "green" },
+      paused: { variant: "destructive", label: "Paused", color: "yellow" }
+    };
+    return badges[status] || badges.draft;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Campaigns</h2>
-        <p className="text-muted-foreground">Create and manage email campaigns</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Campaigns</h2>
+          <p className="text-muted-foreground">
+            Create and manage email sequences with A/B testing
+          </p>
+        </div>
+        <Button onClick={() => setShowCreateDialog(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create Campaign
+        </Button>
       </div>
+
+      {/* Campaign Usage Info */}
+      {user && (
+        <Card className="border-purple-200 bg-purple-50">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium text-purple-800">Campaign Usage</h4>
+                <p className="text-sm text-purple-700">
+                  Multi-step sequences with unlimited A/B testing variations
+                </p>
+              </div>
+              <Badge variant="secondary">
+                {campaigns.length} / {user.subscription_plan === 'free' ? '2' : user.subscription_plan === 'pro' ? '20' : '100'} campaigns
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Campaigns Table */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="text-center py-8">
-            <Mail className="mx-auto h-12 w-12 text-muted-foreground" />
-            <h3 className="mt-4 text-lg font-medium">Campaign management coming soon</h3>
-            <p className="text-muted-foreground">Create powerful email sequences and campaigns</p>
-          </div>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Campaign Name</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Steps</TableHead>
+                <TableHead>Contacts</TableHead>
+                <TableHead>Performance</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {campaigns.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    <Mail className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">No campaigns yet</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Create your first email campaign with A/B testing and personalization
+                    </p>
+                    <Button onClick={() => setShowCreateDialog(true)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Your First Campaign
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                campaigns.map((campaign) => (
+                  <TableRow key={campaign.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{campaign.name}</div>
+                        {campaign.description && (
+                          <div className="text-sm text-muted-foreground">
+                            {campaign.description}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusBadge(campaign.status).variant}>
+                        {getStatusBadge(campaign.status).label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{campaign.steps?.length || 0} steps</TableCell>
+                    <TableCell>{campaign.contact_ids?.length || 0} contacts</TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <div>📧 {campaign.total_sent || 0} sent</div>
+                        <div>📈 {campaign.total_opened || 0} opened</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => fetchAnalytics(campaign.id)}
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                        </Button>
+                        {campaign.status === 'draft' || campaign.status === 'paused' ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleStartCampaign(campaign.id)}
+                          >
+                            <Play className="h-4 w-4" />
+                          </Button>
+                        ) : campaign.status === 'sending' ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handlePauseCampaign(campaign.id)}
+                          >
+                            <Pause className="h-4 w-4" />
+                          </Button>
+                        ) : null}
+                        <Button variant="ghost" size="sm">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
-    </div>
-  );
-};
 
 const SMTPConfigs = () => {
   const [smtpConfigs, setSmtpConfigs] = useState([]);
