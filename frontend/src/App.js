@@ -1186,11 +1186,26 @@ const SMTPConfigs = () => {
     try {
       const response = await axios.post(`${API}/smtp-configs/${currentConfig.id}/test`, testData);
       setTestResult(response.data);
-      toast({
-        title: response.data.success ? "Success" : "Error",
-        description: response.data.message,
-        variant: response.data.success ? "default" : "destructive"
-      });
+      
+      // Show different toast messages based on error type
+      if (response.data.success) {
+        toast({
+          title: "Success!",
+          description: "Test email sent successfully. Check your inbox.",
+        });
+      } else if (response.data.error_type === 'gmail_app_password_required') {
+        toast({
+          title: "Gmail Setup Required",
+          description: "Please use an App Password instead of your regular password.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Test Failed",
+          description: response.data.message,
+          variant: "destructive"
+        });
+      }
     } catch (error) {
       console.error('Error testing SMTP config:', error);
       setTestResult({ success: false, message: error.response?.data?.detail || "Test failed" });
