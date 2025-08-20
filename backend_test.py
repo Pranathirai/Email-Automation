@@ -1006,6 +1006,144 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
             print(f"   Enhanced Stats: {response}")
         return success, response
 
+    # Template and Variable Testing Methods
+    def test_get_available_variables(self):
+        """Test getting available template variables"""
+        success, response = self.run_test(
+            "Get Available Variables",
+            "GET",
+            "templates/variables",
+            200,
+            auth_required=True
+        )
+        if success:
+            required_sections = ['standard', 'usage', 'sample_data']
+            for section in required_sections:
+                if section not in response:
+                    print(f"❌ Missing section in variables: {section}")
+                    return False
+            
+            standard_vars = response['standard']
+            expected_vars = ['first_name', 'last_name', 'full_name', 'email', 'company', 'phone']
+            for var in expected_vars:
+                if var not in standard_vars:
+                    print(f"❌ Missing standard variable: {var}")
+                    return False
+            
+            print(f"   ✅ Available variables: {list(standard_vars.keys())}")
+            print(f"   Usage guide: {response['usage']}")
+        return success, response
+
+    def test_validate_template(self, template):
+        """Test template validation"""
+        success, response = self.run_test(
+            f"Validate Template",
+            "POST",
+            f"templates/validate?template={template}",
+            200,
+            auth_required=True
+        )
+        if success:
+            required_fields = ['template', 'is_valid', 'variables_found', 'valid_variables', 'invalid_variables']
+            for field in required_fields:
+                if field not in response:
+                    print(f"❌ Missing field in template validation: {field}")
+                    return False
+            
+            print(f"   Template: {template}")
+            print(f"   Valid: {response['is_valid']}")
+            print(f"   Variables found: {response['variables_found']}")
+            if response['invalid_variables']:
+                print(f"   Invalid variables: {response['invalid_variables']}")
+        return success, response
+
+    def test_campaign_personalization_preview(self, campaign_id, contact_id, template):
+        """Test campaign personalization preview"""
+        preview_data = {
+            "template": template,
+            "contact_id": contact_id
+        }
+        success, response = self.run_test(
+            f"Campaign Personalization Preview",
+            "POST",
+            f"campaigns/{campaign_id}/preview",
+            200,
+            data=preview_data,
+            auth_required=True
+        )
+        if success:
+            required_fields = ['original_template', 'personalized_content', 'contact', 'variables_used']
+            for field in required_fields:
+                if field not in response:
+                    print(f"❌ Missing field in preview: {field}")
+                    return False
+            
+            print(f"   Original: {response['original_template']}")
+            print(f"   Personalized: {response['personalized_content']}")
+            print(f"   Variables used: {response['variables_used']}")
+        return success, response
+
+    def test_campaign_validation(self, campaign_id):
+        """Test campaign validation"""
+        success, response = self.run_test(
+            f"Campaign Validation",
+            "POST",
+            f"campaigns/{campaign_id}/validate",
+            200,
+            auth_required=True
+        )
+        if success:
+            required_fields = ['campaign_id', 'campaign_name', 'is_valid', 'contacts_count', 
+                             'steps_count', 'variable_validation', 'smtp_issues', 'setup_issues']
+            for field in required_fields:
+                if field not in response:
+                    print(f"❌ Missing field in campaign validation: {field}")
+                    return False
+            
+            print(f"   Campaign: {response['campaign_name']}")
+            print(f"   Valid: {response['is_valid']}")
+            print(f"   Contacts: {response['contacts_count']}")
+            print(f"   Steps: {response['steps_count']}")
+            
+            if response['smtp_issues']:
+                print(f"   SMTP Issues: {response['smtp_issues']}")
+            if response['setup_issues']:
+                print(f"   Setup Issues: {response['setup_issues']}")
+            
+            var_validation = response['variable_validation']
+            if not var_validation['valid']:
+                print(f"   Variable Issues: {var_validation['issues']}")
+        
+        return success, response
+
+    def test_campaign_start(self, campaign_id):
+        """Test starting a campaign"""
+        success, response = self.run_test(
+            f"Start Campaign",
+            "POST",
+            f"campaigns/{campaign_id}/start",
+            200,
+            auth_required=True
+        )
+        if success:
+            print(f"   Campaign started: {response.get('message', 'No message')}")
+            print(f"   Status: {response.get('status', 'Unknown')}")
+        return success, response
+
+    def test_campaign_pause(self, campaign_id):
+        """Test pausing a campaign"""
+        success, response = self.run_test(
+            f"Pause Campaign",
+            "POST",
+            f"campaigns/{campaign_id}/pause",
+            200,
+            auth_required=True
+        )
+        if success:
+            print(f"   Campaign paused: {response.get('message', 'No message')}")
+            print(f"   Status: {response.get('status', 'Unknown')}")
+        return success, response
+
     def cleanup_created_campaigns(self):
         """Clean up campaigns created during testing"""
         print(f"\n🧹 Cleaning up {len(self.created_campaign_ids)} created campaigns...")
