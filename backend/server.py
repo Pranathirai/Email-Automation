@@ -1017,12 +1017,21 @@ async def upload_contacts_csv(file: UploadFile = File(...), current_user: User =
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing CSV: {str(e)}")
 
-# Campaign Routes (with user context and limits)
+# Enhanced Campaign Routes
 @api_router.post("/campaigns", response_model=Campaign)
 async def create_campaign(campaign_data: CampaignCreate, current_user: User = Depends(get_current_user)):
     # Check subscription limits
     current_count = await db.campaigns.count_documents({"user_id": current_user.id})
     await check_subscription_limits(current_user, "campaigns", current_count)
+    
+    # Validate SMTP configs belong to user
+    if campaign_data.smtp_config_ids:
+        smtp_count = await db.smtp_configs.count_documents({
+            "id": {"$in": campaign_data.smtp_config_ids},
+            "user_id": current_user.id
+        })
+        if smtp_count != len(campaign_data.smtp_config_ids):
+            raise HTTPException(status_code=400, detail="Some SMTP configurations not found")
     
     campaign = Campaign(user_id=current_user.id, **campaign_data.dict())
     campaign_mongo = prepare_for_mongo(campaign.dict())
@@ -1035,6 +1044,183 @@ async def get_campaigns(current_user: User = Depends(get_current_user)):
     campaigns = await db.campaigns.find({"user_id": current_user.id}).sort("created_at", -1).to_list(length=None)
     return [Campaign(**parse_from_mongo(campaign)) for campaign in campaigns]
 
+@api_router.get("/campaigns/{campaign_id}", response_model=Campaign)
+async def get_campaign(campaign_id: str, current_user: User = Depends(get_current_user)):
+    campaign = await db.campaigns.find_one({"id": campaign_id, "user_id": current_user.id})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return Campaign(**parse_from_mongo(campaign))
+
+@api_router.put("/campaigns/{campaign_id}", response_model=Campaign)
+async def update_campaign(campaign_id: str, campaign_data: CampaignUpdate, current_user: User = Depends(get_current_user)):
+    campaign = await db.campaigns.find_one({"id": campaign_id, "user_id": current_user.id})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    update_data = {k: v for k, v in campaign_data.dict(exclude_unset=True).items() if v is not None}
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.campaigns.update_one(
+        {"id": campaign_id, "user_id": current_user.id},
+        {"$set": prepare_for_mongo(update_data)}
+    )
+    
+    updated_campaign = await db.campaigns.find_one({"id": campaign_id, "user_id": current_user.id})
+    return Campaign(**parse_from_mongo(updated_campaign))
+
+@api_router.delete("/campaigns/{campaign_id}")
+async def delete_campaign(campaign_id: str, current_user: User = Depends(get_current_user)):
+    result = await db.campaigns.delete_one({"id": campaign_id, "user_id": current_user.id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return {"message": "Campaign deleted successfully"}
+
+@api_router.post("/campaigns/{campaign_id}/preview")
+async def preview_campaign_personalization(
+    campaign_id: str, 
+    preview_request: VariablePreviewRequest, 
+    current_user: User = Depends(get_current_user)
+):
+    """Preview how a template will look with personalized variables for a specific contact"""
+    
+    # Get contact
+    contact = await db.contacts.find_one({
+        "id": preview_request.contact_id, 
+        "user_id": current_user.id
+    })
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    
+    # Get campaign for custom variables
+    campaign = await db.campaigns.find_one({"id": campaign_id, "user_id": current_user.id})
+    custom_variables = campaign.get("custom_variables", {}) if campaign else {}
+    
+    # Personalize template
+    personalized = personalize_template(
+        preview_request.template, 
+        parse_from_mongo(contact),
+        custom_variables
+    )
+    
+    # Extract variables used
+    variables_found = extract_variables_from_template(preview_request.template)
+    
+    return {
+        "original_template": preview_request.template,
+        "personalized_content": personalized,
+        "contact": {
+            "name": f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip(),
+            "email": contact.get("email", ""),
+            "company": contact.get("company", "")
+        },
+        "variables_used": variables_found
+    }
+
+@api_router.post("/campaigns/{campaign_id}/validate")
+async def validate_campaign(campaign_id: str, current_user: User = Depends(get_current_user)):
+    """Validate campaign setup and variables"""
+    
+    # Get campaign
+    campaign = await db.campaigns.find_one({"id": campaign_id, "user_id": current_user.id})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    campaign_obj = Campaign(**parse_from_mongo(campaign))
+    
+    # Get contacts
+    contacts = []
+    if campaign_obj.contact_ids:
+        contacts_cursor = db.contacts.find({
+            "id": {"$in": campaign_obj.contact_ids},
+            "user_id": current_user.id
+        })
+        contacts = await contacts_cursor.to_list(length=None)
+        contacts = [parse_from_mongo(c) for c in contacts]
+    
+    # Validate variables
+    validation_result = validate_campaign_variables(campaign_obj, contacts)
+    
+    # Check SMTP configurations
+    smtp_issues = []
+    if campaign_obj.smtp_config_ids:
+        smtp_count = await db.smtp_configs.count_documents({
+            "id": {"$in": campaign_obj.smtp_config_ids},
+            "user_id": current_user.id,
+            "is_active": True
+        })
+        if smtp_count == 0:
+            smtp_issues.append("No active SMTP configurations found")
+        elif smtp_count < len(campaign_obj.smtp_config_ids):
+            smtp_issues.append("Some SMTP configurations are inactive or not found")
+    else:
+        smtp_issues.append("No SMTP configurations selected")
+    
+    # Check if campaign has steps
+    setup_issues = []
+    if not campaign_obj.steps:
+        setup_issues.append("Campaign has no email steps configured")
+    else:
+        for i, step in enumerate(campaign_obj.steps):
+            if not step.variations:
+                setup_issues.append(f"Step {i+1} has no email variations")
+            for j, variation in enumerate(step.variations):
+                if not variation.subject.strip():
+                    setup_issues.append(f"Step {i+1}, Variation {j+1} has no subject")
+                if not variation.content.strip():
+                    setup_issues.append(f"Step {i+1}, Variation {j+1} has no content")
+    
+    return {
+        "campaign_id": campaign_id,
+        "campaign_name": campaign["name"],
+        "is_valid": validation_result["valid"] and len(smtp_issues) == 0 and len(setup_issues) == 0,
+        "contacts_count": len(contacts),
+        "steps_count": len(campaign_obj.steps),
+        "variable_validation": validation_result,
+        "smtp_issues": smtp_issues,
+        "setup_issues": setup_issues
+    }
+
+@api_router.post("/campaigns/{campaign_id}/start")
+async def start_campaign(campaign_id: str, current_user: User = Depends(get_current_user)):
+    """Start campaign sending"""
+    
+    # Validate campaign first
+    validation_response = await validate_campaign(campaign_id, current_user)
+    if not validation_response["is_valid"]:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Campaign validation failed: {validation_response}"
+        )
+    
+    # Update campaign status
+    await db.campaigns.update_one(
+        {"id": campaign_id, "user_id": current_user.id},
+        {
+            "$set": {
+                "status": CampaignStatus.SENDING.value,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    return {"message": "Campaign started successfully", "status": "sending"}
+
+@api_router.post("/campaigns/{campaign_id}/pause")
+async def pause_campaign(campaign_id: str, current_user: User = Depends(get_current_user)):
+    """Pause campaign sending"""
+    
+    await db.campaigns.update_one(
+        {"id": campaign_id, "user_id": current_user.id},
+        {
+            "$set": {
+                "status": CampaignStatus.PAUSED.value,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    return {"message": "Campaign paused successfully", "status": "paused"}
+
 @api_router.get("/campaigns/{campaign_id}/analytics")
 async def get_campaign_analytics(campaign_id: str, current_user: User = Depends(get_current_user)):
     # Verify campaign belongs to user
@@ -1042,30 +1228,101 @@ async def get_campaign_analytics(campaign_id: str, current_user: User = Depends(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     
-    # Get email tracking stats
-    total_emails = await db.email_tracking.count_documents({"campaign_id": campaign_id})
-    sent_emails = await db.email_tracking.count_documents({"campaign_id": campaign_id, "status": {"$ne": "pending"}})
-    delivered_emails = await db.email_tracking.count_documents({"campaign_id": campaign_id, "delivered_at": {"$exists": True}})
-    opened_emails = await db.email_tracking.count_documents({"campaign_id": campaign_id, "opened_at": {"$exists": True}})
-    clicked_emails = await db.email_tracking.count_documents({"campaign_id": campaign_id, "clicked_at": {"$exists": True}})
-    bounced_emails = await db.email_tracking.count_documents({"campaign_id": campaign_id, "bounced_at": {"$exists": True}})
-    replied_emails = await db.email_tracking.count_documents({"campaign_id": campaign_id, "replied_at": {"$exists": True}})
+    # Enhanced analytics with A/B testing breakdown
+    pipeline = [
+        {"$match": {"campaign_id": campaign_id}},
+        {"$group": {
+            "_id": {
+                "step_id": "$campaign_step_id",
+                "variation_id": "$variation_id",
+                "variation_name": "$variation_name"
+            },
+            "total_sent": {"$sum": 1},
+            "delivered": {"$sum": {"$cond": [{"$ne": ["$delivered_at", None]}, 1, 0]}},
+            "opened": {"$sum": {"$cond": [{"$ne": ["$opened_at", None]}, 1, 0]}},
+            "clicked": {"$sum": {"$cond": [{"$ne": ["$clicked_at", None]}, 1, 0]}},
+            "replied": {"$sum": {"$cond": [{"$ne": ["$replied_at", None]}, 1, 0]}},
+            "bounced": {"$sum": {"$cond": [{"$ne": ["$bounced_at", None]}, 1, 0]}}
+        }}
+    ]
     
-    return {
+    variation_stats = await db.email_tracking.aggregate(pipeline).to_list(length=None)
+    
+    # Overall stats
+    total_stats = {
         "campaign_id": campaign_id,
         "campaign_name": campaign["name"],
-        "total_emails": total_emails,
-        "sent_emails": sent_emails,
-        "delivered_emails": delivered_emails,
-        "opened_emails": opened_emails,
-        "clicked_emails": clicked_emails,
-        "bounced_emails": bounced_emails,
-        "replied_emails": replied_emails,
-        "open_rate": round((opened_emails / sent_emails * 100) if sent_emails > 0 else 0, 2),
-        "click_rate": round((clicked_emails / sent_emails * 100) if sent_emails > 0 else 0, 2),
-        "bounce_rate": round((bounced_emails / sent_emails * 100) if sent_emails > 0 else 0, 2),
-        "reply_rate": round((replied_emails / sent_emails * 100) if sent_emails > 0 else 0, 2),
-        "delivery_rate": round((delivered_emails / sent_emails * 100) if sent_emails > 0 else 0, 2)
+        "status": campaign.get("status", "draft"),
+        "total_emails": 0,
+        "delivered_emails": 0,
+        "opened_emails": 0,
+        "clicked_emails": 0,
+        "replied_emails": 0,
+        "bounced_emails": 0
+    }
+    
+    # Aggregate totals
+    for stat in variation_stats:
+        total_stats["total_emails"] += stat["total_sent"]
+        total_stats["delivered_emails"] += stat["delivered"]
+        total_stats["opened_emails"] += stat["opened"]
+        total_stats["clicked_emails"] += stat["clicked"]
+        total_stats["replied_emails"] += stat["replied"]
+        total_stats["bounced_emails"] += stat["bounced"]
+    
+    # Calculate rates
+    sent = total_stats["total_emails"]
+    if sent > 0:
+        total_stats.update({
+            "delivery_rate": round((total_stats["delivered_emails"] / sent * 100), 2),
+            "open_rate": round((total_stats["opened_emails"] / sent * 100), 2),
+            "click_rate": round((total_stats["clicked_emails"] / sent * 100), 2),
+            "reply_rate": round((total_stats["replied_emails"] / sent * 100), 2),
+            "bounce_rate": round((total_stats["bounced_emails"] / sent * 100), 2)
+        })
+    else:
+        total_stats.update({
+            "delivery_rate": 0, "open_rate": 0, "click_rate": 0, 
+            "reply_rate": 0, "bounce_rate": 0
+        })
+    
+    # A/B testing breakdown
+    ab_breakdown = []
+    for stat in variation_stats:
+        variation_data = {
+            "step_id": stat["_id"]["step_id"],
+            "variation_id": stat["_id"]["variation_id"],
+            "variation_name": stat["_id"]["variation_name"] or "Unknown",
+            "sent": stat["total_sent"],
+            "delivered": stat["delivered"],
+            "opened": stat["opened"],
+            "clicked": stat["clicked"],
+            "replied": stat["replied"],
+            "bounced": stat["bounced"]
+        }
+        
+        # Calculate rates for this variation
+        if stat["total_sent"] > 0:
+            variation_data.update({
+                "delivery_rate": round((stat["delivered"] / stat["total_sent"] * 100), 2),
+                "open_rate": round((stat["opened"] / stat["total_sent"] * 100), 2),
+                "click_rate": round((stat["clicked"] / stat["total_sent"] * 100), 2),
+                "reply_rate": round((stat["replied"] / stat["total_sent"] * 100), 2),
+                "bounce_rate": round((stat["bounced"] / stat["total_sent"] * 100), 2)
+            })
+        else:
+            variation_data.update({
+                "delivery_rate": 0, "open_rate": 0, "click_rate": 0,
+                "reply_rate": 0, "bounce_rate": 0
+            })
+        
+        ab_breakdown.append(variation_data)
+    
+    return {
+        "overall": total_stats,
+        "ab_testing": ab_breakdown,
+        "steps_count": len(campaign.get("steps", [])),
+        "variations_count": sum(len(step.get("variations", [])) for step in campaign.get("steps", []))
     }
 
 # Email Tracking Routes
