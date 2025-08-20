@@ -920,6 +920,7 @@ const CampaignForm = ({ isEdit = false }) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
   const [contacts, setContacts] = useState([]);
   const [selectedContacts, setSelectedContacts] = useState([]);
   const [campaign, setCampaign] = useState({
