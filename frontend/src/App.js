@@ -1059,21 +1059,551 @@ const Campaigns = () => {
 };
 
 const SMTPConfigs = () => {
+  const [smtpConfigs, setSmtpConfigs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showTestDialog, setShowTestDialog] = useState(false);
+  const [currentConfig, setCurrentConfig] = useState(null);
+  const [newConfig, setNewConfig] = useState({
+    name: '',
+    provider: 'custom',
+    email: '',
+    smtp_host: '',
+    smtp_port: 587,
+    smtp_username: '',
+    smtp_password: '',
+    use_tls: true,
+    use_ssl: false,
+    daily_limit: 300
+  });
+  const [testData, setTestData] = useState({
+    test_email: '',
+    subject: 'Test Email from MailerPro',
+    content: 'This is a test email to verify your SMTP configuration.'
+  });
+  const [testResult, setTestResult] = useState(null);
+  const [testLoading, setTestLoading] = useState(false);
+  const { toast } = useToast();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    fetchSMTPConfigs();
+  }, []);
+
+  const fetchSMTPConfigs = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${API}/smtp-configs`);
+      setSmtpConfigs(response.data);
+    } catch (error) {
+      console.error('Error fetching SMTP configs:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to fetch SMTP configurations",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddConfig = async () => {
+    try {
+      await axios.post(`${API}/smtp-configs`, newConfig);
+      toast({
+        title: "Success",
+        description: "SMTP configuration added successfully",
+      });
+      setShowAddDialog(false);
+      setNewConfig({
+        name: '',
+        provider: 'custom',
+        email: '',
+        smtp_host: '',
+        smtp_port: 587,
+        smtp_username: '',
+        smtp_password: '',
+        use_tls: true,
+        use_ssl: false,
+        daily_limit: 300
+      });
+      fetchSMTPConfigs();
+    } catch (error) {
+      console.error('Error adding SMTP config:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to add SMTP configuration",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleEditConfig = async () => {
+    try {
+      await axios.put(`${API}/smtp-configs/${currentConfig.id}`, currentConfig);
+      toast({
+        title: "Success",
+        description: "SMTP configuration updated successfully",
+      });
+      setShowEditDialog(false);
+      setCurrentConfig(null);
+      fetchSMTPConfigs();
+    } catch (error) {
+      console.error('Error updating SMTP config:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to update SMTP configuration",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDeleteConfig = async (configId) => {
+    if (!window.confirm('Are you sure you want to delete this SMTP configuration?')) {
+      return;
+    }
+
+    try {
+      await axios.delete(`${API}/smtp-configs/${configId}`);
+      toast({
+        title: "Success",
+        description: "SMTP configuration deleted successfully",
+      });
+      fetchSMTPConfigs();
+    } catch (error) {
+      console.error('Error deleting SMTP config:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to delete SMTP configuration",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleTestConfig = async () => {
+    setTestLoading(true);
+    try {
+      const response = await axios.post(`${API}/smtp-configs/${currentConfig.id}/test`, testData);
+      setTestResult(response.data);
+      toast({
+        title: response.data.success ? "Success" : "Error",
+        description: response.data.message,
+        variant: response.data.success ? "default" : "destructive"
+      });
+    } catch (error) {
+      console.error('Error testing SMTP config:', error);
+      setTestResult({ success: false, message: error.response?.data?.detail || "Test failed" });
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to test SMTP configuration",
+        variant: "destructive"
+      });
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
+  const getProviderDefaults = (provider) => {
+    const defaults = {
+      gmail: { smtp_host: 'smtp.gmail.com', smtp_port: 587, use_tls: true, use_ssl: false },
+      outlook: { smtp_host: 'smtp-mail.outlook.com', smtp_port: 587, use_tls: true, use_ssl: false },
+      custom: { smtp_host: '', smtp_port: 587, use_tls: true, use_ssl: false }
+    };
+    return defaults[provider] || defaults.custom;
+  };
+
+  const handleProviderChange = (provider, isEdit = false) => {
+    const defaults = getProviderDefaults(provider);
+    if (isEdit) {
+      setCurrentConfig({ ...currentConfig, provider, ...defaults });
+    } else {
+      setNewConfig({ ...newConfig, provider, ...defaults });
+    }
+  };
+
+  const getStatusBadge = (config) => {
+    if (!config.is_active) {
+      return <Badge variant="secondary">Inactive</Badge>;
+    }
+    if (config.is_verified) {
+      return <Badge variant="default">Verified</Badge>;
+    }
+    return <Badge variant="outline">Not Verified</Badge>;
+  };
+
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">SMTP Settings</h2>
-        <p className="text-muted-foreground">Manage your email sending accounts</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">SMTP Settings</h2>
+          <p className="text-muted-foreground">
+            Manage your email sending accounts
+          </p>
+        </div>
+        <Button onClick={() => setShowAddDialog(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add SMTP Account
+        </Button>
       </div>
+
+      {/* Subscription limit warning */}
+      {user && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium text-blue-800">Email Account Usage</h4>
+                <p className="text-sm text-blue-700">
+                  You can connect up to {user.subscription_plan === 'free' ? '1' : user.subscription_plan === 'pro' ? '5' : '25'} email accounts
+                </p>
+              </div>
+              <Badge variant="secondary">
+                {smtpConfigs.length} / {user.subscription_plan === 'free' ? '1' : user.subscription_plan === 'pro' ? '5' : '25'} accounts
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
-        <CardContent className="pt-6">
-          <div className="text-center py-8">
-            <Settings className="mx-auto h-12 w-12 text-muted-foreground" />
-            <h3 className="mt-4 text-lg font-medium">SMTP configuration coming soon</h3>
-            <p className="text-muted-foreground">Connect your email accounts for sending campaigns</p>
-          </div>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Provider</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Daily Limit</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    Loading SMTP configurations...
+                  </TableCell>
+                </TableRow>
+              ) : smtpConfigs.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    No SMTP configurations found. Add your first email account to start sending campaigns.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                smtpConfigs.map((config) => (
+                  <TableRow key={config.id}>
+                    <TableCell className="font-medium">{config.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="capitalize">
+                        {config.provider}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{config.email}</TableCell>
+                    <TableCell>{getStatusBadge(config)}</TableCell>
+                    <TableCell>{config.daily_limit}/day</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setCurrentConfig(config);
+                            setTestData({ ...testData, test_email: config.email });
+                            setShowTestDialog(true);
+                          }}
+                        >
+                          <Play className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setCurrentConfig({ ...config });
+                            setShowEditDialog(true);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteConfig(config.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
+
+      {/* Add SMTP Config Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Add SMTP Configuration</DialogTitle>
+            <DialogDescription>
+              Configure a new email account for sending campaigns.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Account Name</Label>
+              <Input
+                id="name"
+                placeholder="e.g., My Gmail Account"
+                value={newConfig.name}
+                onChange={(e) => setNewConfig({...newConfig, name: e.target.value})}
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="provider">Provider</Label>
+              <Select
+                value={newConfig.provider}
+                onValueChange={(value) => handleProviderChange(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gmail">Gmail</SelectItem>
+                  <SelectItem value="outlook">Outlook</SelectItem>
+                  <SelectItem value="custom">Custom SMTP</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your-email@example.com"
+                value={newConfig.email}
+                onChange={(e) => setNewConfig({...newConfig, email: e.target.value})}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="smtp_host">SMTP Host</Label>
+                <Input
+                  id="smtp_host"
+                  placeholder="smtp.example.com"
+                  value={newConfig.smtp_host}
+                  onChange={(e) => setNewConfig({...newConfig, smtp_host: e.target.value})}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="smtp_port">SMTP Port</Label>
+                <Input
+                  id="smtp_port"
+                  type="number"
+                  placeholder="587"
+                  value={newConfig.smtp_port}
+                  onChange={(e) => setNewConfig({...newConfig, smtp_port: parseInt(e.target.value) || 587})}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="smtp_username">Username</Label>
+              <Input
+                id="smtp_username"
+                placeholder="Usually your email address"
+                value={newConfig.smtp_username}
+                onChange={(e) => setNewConfig({...newConfig, smtp_username: e.target.value})}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="smtp_password">Password</Label>
+              <Input
+                id="smtp_password"
+                type="password"
+                placeholder="Your email password or app password"
+                value={newConfig.smtp_password}
+                onChange={(e) => setNewConfig({...newConfig, smtp_password: e.target.value})}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="use_tls"
+                  checked={newConfig.use_tls}
+                  onCheckedChange={(checked) => setNewConfig({...newConfig, use_tls: checked})}
+                />
+                <Label htmlFor="use_tls">Use TLS</Label>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="daily_limit">Daily Limit</Label>
+                <Input
+                  id="daily_limit"
+                  type="number"
+                  placeholder="300"
+                  value={newConfig.daily_limit}
+                  onChange={(e) => setNewConfig({...newConfig, daily_limit: parseInt(e.target.value) || 300})}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="submit" onClick={handleAddConfig}>Add Configuration</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit SMTP Config Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Edit SMTP Configuration</DialogTitle>
+            <DialogDescription>
+              Update your email account settings.
+            </DialogDescription>
+          </DialogHeader>
+          {currentConfig && (
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit_name">Account Name</Label>
+                <Input
+                  id="edit_name"
+                  value={currentConfig.name}
+                  onChange={(e) => setCurrentConfig({...currentConfig, name: e.target.value})}
+                />
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="edit_provider">Provider</Label>
+                <Select
+                  value={currentConfig.provider}
+                  onValueChange={(value) => handleProviderChange(value, true)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gmail">Gmail</SelectItem>
+                    <SelectItem value="outlook">Outlook</SelectItem>
+                    <SelectItem value="custom">Custom SMTP</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_smtp_host">SMTP Host</Label>
+                  <Input
+                    id="edit_smtp_host"
+                    value={currentConfig.smtp_host}
+                    onChange={(e) => setCurrentConfig({...currentConfig, smtp_host: e.target.value})}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_smtp_port">SMTP Port</Label>
+                  <Input
+                    id="edit_smtp_port"
+                    type="number"
+                    value={currentConfig.smtp_port}
+                    onChange={(e) => setCurrentConfig({...currentConfig, smtp_port: parseInt(e.target.value) || 587})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="edit_daily_limit">Daily Limit</Label>
+                <Input
+                  id="edit_daily_limit"
+                  type="number"
+                  value={currentConfig.daily_limit}
+                  onChange={(e) => setCurrentConfig({...currentConfig, daily_limit: parseInt(e.target.value) || 300})}
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="edit_is_active"
+                  checked={currentConfig.is_active}
+                  onCheckedChange={(checked) => setCurrentConfig({...currentConfig, is_active: checked})}
+                />
+                <Label htmlFor="edit_is_active">Account Active</Label>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="submit" onClick={handleEditConfig}>Update Configuration</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Test SMTP Config Dialog */}
+      <Dialog open={showTestDialog} onOpenChange={setShowTestDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Test SMTP Configuration</DialogTitle>
+            <DialogDescription>
+              Send a test email to verify your SMTP settings.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="test_email">Test Email Address</Label>
+              <Input
+                id="test_email"
+                type="email"
+                value={testData.test_email}
+                onChange={(e) => setTestData({...testData, test_email: e.target.value})}
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="test_subject">Subject</Label>
+              <Input
+                id="test_subject"
+                value={testData.subject}
+                onChange={(e) => setTestData({...testData, subject: e.target.value})}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="test_content">Message</Label>
+              <Textarea
+                id="test_content"
+                value={testData.content}
+                onChange={(e) => setTestData({...testData, content: e.target.value})}
+                rows={4}
+              />
+            </div>
+
+            {testResult && (
+              <Alert variant={testResult.success ? "default" : "destructive"}>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {testResult.message}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter>
+            <Button 
+              type="submit" 
+              onClick={handleTestConfig}
+              disabled={testLoading || !testData.test_email}
+            >
+              {testLoading ? 'Testing...' : 'Send Test Email'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
