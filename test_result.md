@@ -161,6 +161,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ SMTP Configuration System fully tested and working. All CRUD operations (POST/GET/PUT/DELETE /api/smtp-configs) working correctly. Test endpoint (/api/smtp-configs/{id}/test) properly handles connection testing with appropriate error messages for invalid credentials. Stats endpoint (/api/smtp-configs/{id}/stats) returns correct usage statistics. User isolation working - users can only access their own configs. Subscription limits properly enforced (free plan limited to 1 inbox). Authentication required for all endpoints. Supports Gmail, Outlook, and Custom SMTP providers with proper default settings."
+      - working: true
+        agent: "testing"
+        comment: "✅ SMTP Error Handling Improvements fully tested and working. Comprehensive testing of improved error handling shows: 1) Gmail App Password errors (535) now provide specific guidance with error_type 'gmail_app_password_required', 2) Authentication failures properly categorized as 'authentication_failed', 3) Connection failures (DNS/network issues) properly categorized as 'connection_failed', 4) SSL/TLS errors properly categorized as 'ssl_tls_error', 5) All error responses have consistent format with success:false, helpful message, and specific error_type. Gmail users now receive clear guidance about App Password requirements. Error handling test success rate: 100% (3/3 tests passed)."
 
   - task: "Database Schema & Models"
     implemented: true
