@@ -285,7 +285,8 @@ class MailerProAPITester:
             "Dashboard Stats",
             "GET",
             "stats/dashboard",
-            200
+            200,
+            auth_required=True
         )
         if success:
             required_fields = ['total_contacts', 'total_campaigns', 'recent_contacts', 'active_campaigns']
