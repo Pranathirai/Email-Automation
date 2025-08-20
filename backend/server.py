@@ -502,6 +502,163 @@ async def login_user(user_data: UserLogin):
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     return UserResponse(**current_user.dict())
 
+# SMTP Configuration Routes
+@api_router.post("/smtp-configs", response_model=SMTPConfig)
+async def create_smtp_config(smtp_data: SMTPConfigCreate, current_user: User = Depends(get_current_user)):
+    """Create a new SMTP configuration"""
+    # Check subscription limits
+    current_count = await db.smtp_configs.count_documents({"user_id": current_user.id})
+    await check_subscription_limits(current_user, "inboxes", current_count)
+    
+    # Get default settings for the provider
+    defaults = await get_default_smtp_settings(smtp_data.provider)
+    
+    # Create SMTP config
+    smtp_config = SMTPConfig(
+        user_id=current_user.id,
+        **smtp_data.dict(),
+        **{k: v for k, v in defaults.items() if getattr(smtp_data, k) is None and k not in ['smtp_host', 'smtp_port']}
+    )
+    
+    # Apply provider defaults if not specified
+    if not smtp_config.smtp_host:
+        smtp_config.smtp_host = defaults["smtp_host"]
+    if not smtp_config.smtp_port:
+        smtp_config.smtp_port = defaults["smtp_port"]
+    
+    # Encrypt sensitive data
+    if smtp_config.smtp_password:
+        smtp_config.smtp_password = encrypt_sensitive_data(smtp_config.smtp_password)
+    
+    smtp_mongo = prepare_for_mongo(smtp_config.dict())
+    await db.smtp_configs.insert_one(smtp_mongo)
+    
+    return smtp_config
+
+@api_router.get("/smtp-configs", response_model=List[SMTPConfig])
+async def get_smtp_configs(current_user: User = Depends(get_current_user)):
+    """Get all SMTP configurations for the current user"""
+    configs = await db.smtp_configs.find({"user_id": current_user.id}).sort("created_at", -1).to_list(length=None)
+    result = []
+    for config in configs:
+        config = parse_from_mongo(config)
+        # Don't return sensitive data in list view
+        if config.get("smtp_password"):
+            config["smtp_password"] = "***encrypted***"
+        if config.get("access_token"):
+            config["access_token"] = "***encrypted***"
+        if config.get("refresh_token"):
+            config["refresh_token"] = "***encrypted***"
+        result.append(SMTPConfig(**config))
+    return result
+
+@api_router.get("/smtp-configs/{config_id}", response_model=SMTPConfig)
+async def get_smtp_config(config_id: str, current_user: User = Depends(get_current_user)):
+    """Get a specific SMTP configuration"""
+    config = await db.smtp_configs.find_one({"id": config_id, "user_id": current_user.id})
+    if not config:
+        raise HTTPException(status_code=404, detail="SMTP configuration not found")
+    
+    config = parse_from_mongo(config)
+    # Don't return sensitive data
+    if config.get("smtp_password"):
+        config["smtp_password"] = "***encrypted***"
+    if config.get("access_token"):
+        config["access_token"] = "***encrypted***"
+    if config.get("refresh_token"):
+        config["refresh_token"] = "***encrypted***"
+    
+    return SMTPConfig(**config)
+
+@api_router.put("/smtp-configs/{config_id}", response_model=SMTPConfig)
+async def update_smtp_config(config_id: str, smtp_data: SMTPConfigUpdate, current_user: User = Depends(get_current_user)):
+    """Update an SMTP configuration"""
+    config = await db.smtp_configs.find_one({"id": config_id, "user_id": current_user.id})
+    if not config:
+        raise HTTPException(status_code=404, detail="SMTP configuration not found")
+    
+    update_data = {k: v for k, v in smtp_data.dict(exclude_unset=True).items() if v is not None}
+    
+    # Encrypt password if provided
+    if "smtp_password" in update_data:
+        update_data["smtp_password"] = encrypt_sensitive_data(update_data["smtp_password"])
+    
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.smtp_configs.update_one(
+        {"id": config_id, "user_id": current_user.id},
+        {"$set": prepare_for_mongo(update_data)}
+    )
+    
+    # Get updated config
+    updated_config = await db.smtp_configs.find_one({"id": config_id, "user_id": current_user.id})
+    updated_config = parse_from_mongo(updated_config)
+    
+    # Don't return sensitive data
+    if updated_config.get("smtp_password"):
+        updated_config["smtp_password"] = "***encrypted***"
+    
+    return SMTPConfig(**updated_config)
+
+@api_router.delete("/smtp-configs/{config_id}")
+async def delete_smtp_config(config_id: str, current_user: User = Depends(get_current_user)):
+    """Delete an SMTP configuration"""
+    result = await db.smtp_configs.delete_one({"id": config_id, "user_id": current_user.id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="SMTP configuration not found")
+    
+    return {"message": "SMTP configuration deleted successfully"}
+
+@api_router.post("/smtp-configs/{config_id}/test")
+async def test_smtp_config(config_id: str, test_request: SMTPTestRequest, current_user: User = Depends(get_current_user)):
+    """Test an SMTP configuration by sending a test email"""
+    config = await db.smtp_configs.find_one({"id": config_id, "user_id": current_user.id})
+    if not config:
+        raise HTTPException(status_code=404, detail="SMTP configuration not found")
+    
+    config = parse_from_mongo(config)
+    smtp_config = SMTPConfig(**config)
+    
+    # Test the connection
+    result = await test_smtp_connection(
+        smtp_config,
+        test_request.test_email,
+        test_request.subject,
+        test_request.content
+    )
+    
+    # Update verification status and last test time
+    update_data = {
+        "last_test_at": datetime.now(timezone.utc).isoformat(),
+        "is_verified": result["success"],
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.smtp_configs.update_one(
+        {"id": config_id, "user_id": current_user.id},
+        {"$set": prepare_for_mongo(update_data)}
+    )
+    
+    return result
+
+@api_router.get("/smtp-configs/{config_id}/stats")
+async def get_smtp_config_stats(config_id: str, current_user: User = Depends(get_current_user)):
+    """Get sending statistics for an SMTP configuration"""
+    config = await db.smtp_configs.find_one({"id": config_id, "user_id": current_user.id})
+    if not config:
+        raise HTTPException(status_code=404, detail="SMTP configuration not found")
+    
+    # Get stats from email tracking where this SMTP was used
+    # For now, return basic stats from the config
+    return {
+        "daily_sent_count": config.get("daily_sent_count", 0),
+        "daily_limit": config.get("daily_limit", 300),
+        "remaining_today": max(0, config.get("daily_limit", 300) - config.get("daily_sent_count", 0)),
+        "is_verified": config.get("is_verified", False),
+        "last_test_at": config.get("last_test_at"),
+        "status": "active" if config.get("is_active", False) else "inactive"
+    }
+
 # Contact Routes (with user context and limits)
 @api_router.post("/contacts", response_model=Contact)
 async def create_contact(contact_data: ContactCreate, current_user: User = Depends(get_current_user)):
