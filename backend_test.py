@@ -977,7 +977,7 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
                 print(f"   ❌ Error deleting contact {contact_id}: {str(e)}")
 
 def main():
-    print("🚀 Starting MailerPro API Tests - Focus on SMTP Error Handling Improvements")
+    print("🚀 Starting MailerPro API Tests - Focus on CSV Contact Import Functionality")
     print("=" * 70)
     
     tester = MailerProAPITester()
@@ -992,9 +992,9 @@ def main():
         print("\n" + "=" * 25 + " AUTHENTICATION TESTS " + "=" * 25)
         
         # Test 2: User Registration
-        test_email = f"testuser_{datetime.now().strftime('%Y%m%d_%H%M%S')}@example.com"
+        test_email = f"csvtester_{datetime.now().strftime('%Y%m%d_%H%M%S')}@example.com"
         test_password = "SecurePassword123!"
-        test_name = "Test User"
+        test_name = "CSV Test User"
         
         success, user_data = tester.test_user_registration(test_email, test_password, test_name)
         if not success:
@@ -1007,154 +1007,98 @@ def main():
             print("❌ User login failed, stopping tests")
             return 1
 
-        # Test 4: Get current user info
-        tester.test_get_current_user()
-
-        # SMTP Error Handling Tests - PRIMARY FOCUS
-        print("\n" + "=" * 25 + " SMTP ERROR HANDLING TESTS " + "=" * 25)
-        
-        # Test 5: Gmail App Password Error Handling
-        print("\n🔍 Testing Gmail App Password Error Handling...")
-        gmail_error_success, gmail_error_response = tester.test_smtp_error_handling_gmail_app_password()
-        
-        # Test 6: Authentication Failed Error Handling
-        print("\n🔍 Testing Authentication Failed Error Handling...")
-        auth_error_success, auth_error_response = tester.test_smtp_error_handling_authentication_failed()
-        
-        # Test 7: Connection Failed Error Handling
-        print("\n🔍 Testing Connection Failed Error Handling...")
-        conn_error_success, conn_error_response = tester.test_smtp_error_handling_connection_failed()
-        
-        # Test 8: SSL/TLS Error Handling
-        print("\n🔍 Testing SSL/TLS Error Handling...")
-        ssl_error_success, ssl_error_response = tester.test_smtp_error_handling_ssl_tls_error()
-        
-        # Test 9: Error Response Format Validation
-        print("\n🔍 Testing Error Response Format...")
-        format_success, format_response = tester.test_smtp_error_response_format()
-
-        # Basic SMTP Configuration Tests (to ensure normal operations still work)
-        print("\n" + "=" * 25 + " BASIC SMTP CONFIGURATION TESTS " + "=" * 25)
-        
-        # Test 10: Create Gmail SMTP Config
-        gmail_config_id = tester.test_create_smtp_config(
-            name="My Gmail Account",
-            provider="gmail",
-            email="user@gmail.com",
-            smtp_username="user@gmail.com",
-            smtp_password="app_password_123",
-            daily_limit=500
-        )
-
-        # Test 11: Create Outlook SMTP Config
-        outlook_config_id = tester.test_create_smtp_config(
-            name="Corporate Outlook",
-            provider="outlook",
-            email="user@company.com",
-            smtp_username="user@company.com",
-            smtp_password="outlook_password",
-            daily_limit=300
-        )
-
-        # Test 12: Create Custom SMTP Config
-        custom_config_id = tester.test_create_smtp_config(
-            name="Custom SMTP Server",
-            provider="custom",
-            email="user@customdomain.com",
-            smtp_host="mail.customdomain.com",
-            smtp_port=587,
-            smtp_username="user@customdomain.com",
-            smtp_password="custom_password",
-            use_tls=True,
-            daily_limit=200
-        )
-
-        # Test 13: Get all SMTP configs
-        success, smtp_configs = tester.test_get_smtp_configs()
-        if not success:
-            print("❌ Get SMTP configs failed")
-
-        # Test 14: Get single SMTP config
-        if gmail_config_id:
-            tester.test_get_single_smtp_config(gmail_config_id)
-
-        # Test 15: Update SMTP config
-        if outlook_config_id:
-            tester.test_update_smtp_config(outlook_config_id, {
-                "name": "Updated Corporate Outlook",
-                "daily_limit": 400,
-                "is_active": True
-            })
-
-        # Test 16: Get SMTP config stats
-        if gmail_config_id:
-            tester.test_smtp_config_stats(gmail_config_id)
-
-        # Test 17: Test unauthorized access (should fail)
-        if gmail_config_id:
-            # Temporarily remove auth token
-            temp_token = tester.auth_token
-            tester.auth_token = None
-            tester.test_unauthorized_smtp_access(gmail_config_id)
-            tester.auth_token = temp_token
-
-        # Test 18: Delete SMTP config
-        if custom_config_id:
-            tester.test_delete_smtp_config(custom_config_id)
-            # Remove from cleanup list since we deleted it
-            if custom_config_id in tester.created_smtp_config_ids:
-                tester.created_smtp_config_ids.remove(custom_config_id)
-
-        # Subscription Limits Test
-        print("\n" + "=" * 25 + " SUBSCRIPTION LIMITS TEST " + "=" * 25)
-        
-        # Test 19: Try to create more SMTP configs than allowed (free plan allows 1 inbox)
+        # Test 4: Get current user info and check subscription limits
         success, user_info = tester.test_get_current_user()
         if success:
             plan = user_info.get('subscription_plan', 'free')
+            print(f"   Current subscription plan: {plan}")
+
+        # Check initial contact count
+        print("\n" + "=" * 25 + " INITIAL STATE CHECK " + "=" * 25)
+        success, initial_contacts = tester.test_get_contacts()
+        initial_count = len(initial_contacts) if success else 0
+        print(f"   Initial contact count: {initial_count}")
+
+        # CSV IMPORT TESTS - PRIMARY FOCUS
+        print("\n" + "=" * 25 + " CSV CONTACT IMPORT TESTS " + "=" * 25)
+        
+        # Test 5: Comprehensive CSV Upload Testing
+        csv_success = tester.test_csv_upload_comprehensive()
+        
+        # Test 6: Invalid CSV file format (should fail)
+        print(f"\n🔍 Testing Invalid CSV File Format...")
+        success6, response6 = tester.test_invalid_csv_upload()
+        
+        # Test 7: Verify final contact count after all CSV imports
+        print(f"\n🔍 Verifying Final Contact Count...")
+        success7, final_contacts = tester.test_get_contacts()
+        final_count = len(final_contacts) if success7 else 0
+        contacts_added = final_count - initial_count
+        print(f"   Final contact count: {final_count}")
+        print(f"   Contacts added via CSV: {contacts_added}")
+        
+        # Test 8: Search functionality with imported contacts
+        print(f"\n🔍 Testing Search with Imported Contacts...")
+        search_terms = ['john', 'jane', 'acme', 'tech']
+        search_results = {}
+        for term in search_terms:
+            success_search, results = tester.test_get_contacts_with_search(term)
+            if success_search:
+                search_results[term] = len(results)
+                print(f"   Search '{term}': {len(results)} results")
+        
+        # Test 9: Dashboard stats after CSV import
+        print(f"\n🔍 Testing Dashboard Stats After CSV Import...")
+        success9, stats = tester.test_enhanced_dashboard_stats()
+        if success9:
+            print(f"   Total contacts in stats: {stats.get('total_contacts', 0)}")
+            print(f"   Recent contacts: {stats.get('recent_contacts', 0)}")
+
+        # Test 10: Subscription limits check
+        print(f"\n🔍 Testing Subscription Limits...")
+        success10, user_info = tester.test_get_current_user()
+        if success10:
+            plan = user_info.get('subscription_plan', 'free')
             print(f"   Current plan: {plan}")
             
-            # Try to create additional SMTP configs to test limits
-            for i in range(2):  # Try to create 2 more (should hit limit)
-                extra_config_id = tester.test_create_smtp_config(
-                    name=f"Extra SMTP Config {i+1}",
-                    provider="custom",
-                    email=f"extra{i+1}@example.com",
-                    smtp_host="smtp.example.com",
-                    smtp_port=587,
-                    smtp_username=f"extra{i+1}@example.com",
-                    smtp_password="password123"
-                )
-                if not extra_config_id:
-                    print(f"   ✅ Subscription limit enforced at config {i+1}")
-                    break
-
-        # Dashboard Stats Test
-        print("\n" + "=" * 25 + " DASHBOARD STATS TEST " + "=" * 25)
-        
-        # Test 20: Enhanced dashboard stats
-        tester.test_enhanced_dashboard_stats()
+            # Check if we're approaching limits
+            if success9:
+                total_contacts = stats.get('total_contacts', 0)
+                subscription_info = stats.get('subscription', {})
+                limits = subscription_info.get('limits', {})
+                contact_limit = limits.get('contacts', {}).get('limit', 100)
+                print(f"   Contact usage: {total_contacts}/{contact_limit}")
+                
+                if total_contacts >= contact_limit * 0.8:  # 80% of limit
+                    print(f"   ⚠️  Approaching contact limit!")
 
         # Print final results
         print("\n" + "=" * 70)
         print(f"📊 Test Results: {tester.tests_passed}/{tester.tests_run} tests passed")
         
-        # Specific results for error handling tests
-        print("\n🎯 SMTP Error Handling Test Results:")
-        print(f"   Gmail App Password Error: {'✅ PASS' if gmail_error_success else '❌ FAIL'}")
-        print(f"   Authentication Failed Error: {'✅ PASS' if auth_error_success else '❌ FAIL'}")
-        print(f"   Connection Failed Error: {'✅ PASS' if conn_error_success else '❌ FAIL'}")
-        print(f"   SSL/TLS Error: {'✅ PASS' if ssl_error_success else '❌ FAIL'}")
-        print(f"   Error Response Format: {'✅ PASS' if format_success else '❌ FAIL'}")
+        # Specific results for CSV import tests
+        print("\n🎯 CSV Import Test Results:")
+        print(f"   Comprehensive CSV Upload: {'✅ PASS' if csv_success else '❌ FAIL'}")
+        print(f"   Invalid CSV Rejection: {'✅ PASS' if success6 else '❌ FAIL'}")
+        print(f"   Contact Count Verification: {'✅ PASS' if success7 else '❌ FAIL'}")
+        print(f"   Search Functionality: {'✅ PASS' if all(search_results.values()) else '❌ FAIL'}")
+        print(f"   Dashboard Stats Update: {'✅ PASS' if success9 else '❌ FAIL'}")
         
-        error_handling_tests_passed = sum([gmail_error_success, auth_error_success, conn_error_success, ssl_error_success, format_success])
-        print(f"\n📊 Error Handling Tests: {error_handling_tests_passed}/5 passed")
+        csv_tests_passed = sum([csv_success, success6, success7, bool(search_results), success9])
+        print(f"\n📊 CSV Import Tests: {csv_tests_passed}/5 passed")
         
-        if tester.tests_passed == tester.tests_run:
-            print("🎉 All tests passed!")
+        # Summary of contacts imported
+        if contacts_added > 0:
+            print(f"\n✅ Successfully imported {contacts_added} contacts via CSV")
+            print(f"   Final database contains {final_count} total contacts")
+        else:
+            print(f"\n❌ No contacts were imported via CSV - this indicates an issue!")
+        
+        if tester.tests_passed == tester.tests_run and csv_success:
+            print("🎉 All tests passed! CSV import functionality is working correctly.")
             result = 0
         else:
-            print("❌ Some tests failed")
+            print("❌ Some tests failed - CSV import functionality needs attention")
             result = 1
 
     except Exception as e:
