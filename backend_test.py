@@ -442,6 +442,59 @@ def main():
             if contact3_id in tester.created_contact_ids:
                 tester.created_contact_ids.remove(contact3_id)
 
+        # Campaign Tests
+        print("\n" + "=" * 30 + " CAMPAIGN TESTS " + "=" * 30)
+        
+        # Test 12: Enhanced dashboard stats (with new fields)
+        tester.test_enhanced_dashboard_stats()
+
+        # Test 13: Create campaigns
+        campaign1_id = tester.test_create_campaign(
+            "Product Launch Campaign",
+            "Exciting news about {{company}} - {{first_name}}!",
+            "Hi {{first_name}},\n\nI hope this email finds you well at {{company}}.\n\nBest regards,\nTeam",
+            contact_ids=[contact1_id, contact2_id] if contact1_id and contact2_id else [],
+            description="Test campaign for product launch"
+        )
+
+        campaign2_id = tester.test_create_campaign(
+            "Follow-up Campaign",
+            "Quick follow-up for {{full_name}}",
+            "Hello {{full_name}},\n\nJust following up on our previous conversation.\n\nThanks!"
+        )
+
+        # Test 14: Get all campaigns
+        success, campaigns = tester.test_get_campaigns()
+        if not success:
+            print("❌ Get campaigns failed")
+
+        # Test 15: Get single campaign
+        if campaign1_id:
+            tester.test_get_single_campaign(campaign1_id)
+
+        # Test 16: Update campaign
+        if campaign1_id:
+            tester.test_update_campaign(campaign1_id, {
+                "name": "Updated Product Launch Campaign",
+                "description": "Updated description for the campaign",
+                "daily_limit": 100
+            })
+
+        # Test 17: Campaign preview with personalization
+        if campaign1_id and contact1_id:
+            tester.test_campaign_preview(campaign1_id, contact1_id)
+
+        # Test 18: Campaign analytics
+        if campaign1_id:
+            tester.test_campaign_analytics(campaign1_id)
+
+        # Test 19: Delete campaign
+        if campaign2_id:
+            tester.test_delete_campaign(campaign2_id)
+            # Remove from cleanup list since we deleted it
+            if campaign2_id in tester.created_campaign_ids:
+                tester.created_campaign_ids.remove(campaign2_id)
+
         # Print final results
         print("\n" + "=" * 50)
         print(f"📊 Test Results: {tester.tests_passed}/{tester.tests_run} tests passed")
