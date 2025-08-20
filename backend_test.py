@@ -226,7 +226,243 @@ class MailerProAPITester:
         if success:
             print(f"   Test result: {response.get('message')}")
             print(f"   Success: {response.get('success')}")
+            if 'error_type' in response:
+                print(f"   Error type: {response.get('error_type')}")
         return success, response
+
+    def test_smtp_error_handling_gmail_app_password(self):
+        """Test Gmail App Password error handling"""
+        # Create Gmail config with regular password (should trigger App Password error)
+        gmail_config_id = self.test_create_smtp_config(
+            name="Gmail Test - Regular Password",
+            provider="gmail",
+            email="testuser@gmail.com",
+            smtp_username="testuser@gmail.com",
+            smtp_password="regular_password_not_app_password",
+            daily_limit=100
+        )
+        
+        if gmail_config_id:
+            success, response = self.test_smtp_connection_test(
+                gmail_config_id,
+                test_email="test@example.com",
+                subject="Gmail App Password Test",
+                content="Testing Gmail App Password error handling"
+            )
+            
+            # Verify error response format
+            if success and not response.get('success', True):
+                print(f"   ✅ Gmail error handling test - Expected failure received")
+                print(f"   Message: {response.get('message', 'No message')}")
+                print(f"   Error type: {response.get('error_type', 'No error type')}")
+                
+                # Check for Gmail-specific guidance
+                message = response.get('message', '').lower()
+                if 'app password' in message and 'gmail' in message:
+                    print(f"   ✅ Gmail-specific App Password guidance provided")
+                    return True, response
+                else:
+                    print(f"   ❌ Gmail-specific guidance not found in message")
+                    return False, response
+            else:
+                print(f"   ❌ Expected error response not received")
+                return False, response
+        
+        return False, {}
+
+    def test_smtp_error_handling_authentication_failed(self):
+        """Test authentication failed error handling"""
+        # Create config with wrong credentials
+        auth_config_id = self.test_create_smtp_config(
+            name="Auth Test - Wrong Credentials",
+            provider="custom",
+            email="testuser@example.com",
+            smtp_host="smtp.gmail.com",
+            smtp_port=587,
+            smtp_username="wrong_username@gmail.com",
+            smtp_password="wrong_password",
+            daily_limit=100
+        )
+        
+        if auth_config_id:
+            success, response = self.test_smtp_connection_test(
+                auth_config_id,
+                test_email="test@example.com",
+                subject="Authentication Test",
+                content="Testing authentication error handling"
+            )
+            
+            # Verify error response format
+            if success and not response.get('success', True):
+                print(f"   ✅ Authentication error handling test - Expected failure received")
+                print(f"   Message: {response.get('message', 'No message')}")
+                print(f"   Error type: {response.get('error_type', 'No error type')}")
+                
+                # Check for authentication error guidance
+                message = response.get('message', '').lower()
+                error_type = response.get('error_type', '')
+                if 'authentication' in message and error_type == 'authentication_failed':
+                    print(f"   ✅ Authentication error properly categorized")
+                    return True, response
+                else:
+                    print(f"   ❌ Authentication error not properly categorized")
+                    return False, response
+            else:
+                print(f"   ❌ Expected error response not received")
+                return False, response
+        
+        return False, {}
+
+    def test_smtp_error_handling_connection_failed(self):
+        """Test connection failed error handling"""
+        # Create config with wrong server settings
+        conn_config_id = self.test_create_smtp_config(
+            name="Connection Test - Wrong Server",
+            provider="custom",
+            email="testuser@example.com",
+            smtp_host="nonexistent.smtp.server.com",
+            smtp_port=587,
+            smtp_username="testuser@example.com",
+            smtp_password="password123",
+            daily_limit=100
+        )
+        
+        if conn_config_id:
+            success, response = self.test_smtp_connection_test(
+                conn_config_id,
+                test_email="test@example.com",
+                subject="Connection Test",
+                content="Testing connection error handling"
+            )
+            
+            # Verify error response format
+            if success and not response.get('success', True):
+                print(f"   ✅ Connection error handling test - Expected failure received")
+                print(f"   Message: {response.get('message', 'No message')}")
+                print(f"   Error type: {response.get('error_type', 'No error type')}")
+                
+                # Check for connection error guidance
+                message = response.get('message', '').lower()
+                error_type = response.get('error_type', '')
+                if 'connect' in message and error_type == 'connection_failed':
+                    print(f"   ✅ Connection error properly categorized")
+                    return True, response
+                else:
+                    print(f"   ❌ Connection error not properly categorized")
+                    return False, response
+            else:
+                print(f"   ❌ Expected error response not received")
+                return False, response
+        
+        return False, {}
+
+    def test_smtp_error_handling_ssl_tls_error(self):
+        """Test SSL/TLS error handling"""
+        # Create config with wrong SSL/TLS settings
+        ssl_config_id = self.test_create_smtp_config(
+            name="SSL Test - Wrong Settings",
+            provider="custom",
+            email="testuser@example.com",
+            smtp_host="smtp.gmail.com",
+            smtp_port=465,  # SSL port
+            smtp_username="testuser@gmail.com",
+            smtp_password="password123",
+            use_tls=True,  # Wrong - should use SSL for port 465
+            daily_limit=100
+        )
+        
+        if ssl_config_id:
+            success, response = self.test_smtp_connection_test(
+                ssl_config_id,
+                test_email="test@example.com",
+                subject="SSL/TLS Test",
+                content="Testing SSL/TLS error handling"
+            )
+            
+            # Verify error response format
+            if success and not response.get('success', True):
+                print(f"   ✅ SSL/TLS error handling test - Expected failure received")
+                print(f"   Message: {response.get('message', 'No message')}")
+                print(f"   Error type: {response.get('error_type', 'No error type')}")
+                
+                # Check for SSL/TLS error guidance
+                message = response.get('message', '').lower()
+                error_type = response.get('error_type', '')
+                if ('ssl' in message or 'tls' in message) and error_type == 'ssl_tls_error':
+                    print(f"   ✅ SSL/TLS error properly categorized")
+                    return True, response
+                else:
+                    print(f"   ❌ SSL/TLS error not properly categorized")
+                    return False, response
+            else:
+                print(f"   ❌ Expected error response not received")
+                return False, response
+        
+        return False, {}
+
+    def test_smtp_error_response_format(self):
+        """Test that all SMTP error responses have the correct format"""
+        print(f"\n🔍 Testing SMTP Error Response Format...")
+        
+        # Create a config that will definitely fail
+        error_config_id = self.test_create_smtp_config(
+            name="Format Test - Invalid Config",
+            provider="custom",
+            email="invalid@example.com",
+            smtp_host="invalid.server.com",
+            smtp_port=999,
+            smtp_username="invalid@example.com",
+            smtp_password="invalid_password",
+            daily_limit=100
+        )
+        
+        if error_config_id:
+            success, response = self.test_smtp_connection_test(
+                error_config_id,
+                test_email="test@example.com",
+                subject="Format Test",
+                content="Testing error response format"
+            )
+            
+            if success:
+                # Check required fields in error response
+                required_fields = ['success', 'message']
+                optional_fields = ['error_type']
+                
+                all_fields_present = True
+                for field in required_fields:
+                    if field not in response:
+                        print(f"   ❌ Missing required field: {field}")
+                        all_fields_present = False
+                    else:
+                        print(f"   ✅ Required field present: {field}")
+                
+                for field in optional_fields:
+                    if field in response:
+                        print(f"   ✅ Optional field present: {field}")
+                    else:
+                        print(f"   ⚠️  Optional field missing: {field}")
+                
+                # Check that success is false for error cases
+                if response.get('success') == False:
+                    print(f"   ✅ Success field correctly set to false")
+                else:
+                    print(f"   ❌ Success field not set to false for error case")
+                    all_fields_present = False
+                
+                # Check that message is not empty
+                if response.get('message') and len(response.get('message', '').strip()) > 0:
+                    print(f"   ✅ Error message is not empty")
+                else:
+                    print(f"   ❌ Error message is empty or missing")
+                    all_fields_present = False
+                
+                return all_fields_present, response
+            else:
+                print(f"   ❌ Failed to get response for format test")
+                return False, {}
+        
+        return False, {}
 
     def test_smtp_config_stats(self, config_id):
         """Get SMTP configuration statistics"""
