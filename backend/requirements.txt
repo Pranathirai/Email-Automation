@@ -24,8 +24,10 @@ python-multipart>=0.0.9
 jq>=1.6.0
 typer>=0.9.0
 aiosmtplib>=3.0.0
-
 premailer>=3.10.0
 google-auth-oauthlib>=1.0.0
 msal>=1.26.0
 schedule>=1.2.0
+emergentintegrations --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/
+bcrypt>=4.0.0
+python-multipart>=0.0.9
