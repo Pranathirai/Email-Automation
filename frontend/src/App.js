@@ -1429,10 +1429,20 @@ const SMTPConfigs = () => {
               <Input
                 id="smtp_password"
                 type="password"
-                placeholder="Your email password or app password"
+                placeholder={newConfig.provider === 'gmail' ? 'Use App Password (not your regular password)' : 'Your email password or app password'}
                 value={newConfig.smtp_password}
                 onChange={(e) => setNewConfig({...newConfig, smtp_password: e.target.value})}
               />
+              {newConfig.provider === 'gmail' && (
+                <p className="text-xs text-muted-foreground">
+                  📝 Gmail requires an App Password. <a href="https://support.google.com/accounts/answer/185833" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Learn how to create one →</a>
+                </p>
+              )}
+              {newConfig.provider === 'outlook' && (
+                <p className="text-xs text-muted-foreground">
+                  📝 Outlook may require an App Password if 2FA is enabled. <a href="https://support.microsoft.com/en-us/account-billing/manage-app-passwords-for-two-step-verification-d6dc8c6d-4bf7-4b3b-b4fa-c4f476589db9" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Learn more →</a>
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
