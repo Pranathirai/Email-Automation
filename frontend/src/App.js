@@ -1361,6 +1361,7 @@ function App() {
             <Route path="/campaigns" element={<Campaigns />} />
             <Route path="/campaigns/new" element={<CampaignForm />} />
             <Route path="/campaigns/:id/edit" element={<CampaignForm isEdit={true} />} />
+            <Route path="/smtp" element={<SMTPConfigs />} />
           </Routes>
         </Layout>
       </BrowserRouter>
