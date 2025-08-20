@@ -980,16 +980,30 @@ const Contacts = () => {
       {selectedFile && (
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <FileSpreadsheet className="h-4 w-4" />
-              <span className="text-sm">{selectedFile.name}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedFile(null)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="h-4 w-4" />
+                <span className="text-sm font-medium">{selectedFile.name}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedFile(null)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="bg-blue-50 p-3 rounded-md border">
+                <p className="text-xs text-blue-800 font-medium mb-2">📝 Expected CSV Format:</p>
+                <code className="text-xs text-blue-700 block">
+                  first_name,last_name,email,company,phone,tags<br/>
+                  John,Doe,john@example.com,Acme Corp,555-1234,lead,prospect<br/>
+                  Jane,Smith,jane@example.com,Tech Inc,,customer
+                </code>
+                <p className="text-xs text-blue-700 mt-2">
+                  <strong>Required:</strong> first_name, email &nbsp;•&nbsp; 
+                  <strong>Optional:</strong> last_name, company, phone, tags
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
