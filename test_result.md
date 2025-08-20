@@ -231,9 +231,8 @@ metadata:
 
 test_plan:
   current_focus:
-    - "SMTP Configuration System" 
-    - "User Authentication System (JWT)"
     - "Stripe Subscription Integration"
+    - "Database Schema & Models"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
