@@ -628,8 +628,161 @@ class MailerProAPITester:
         )
         return success
 
+    def test_csv_upload_comprehensive(self):
+        """Comprehensive CSV upload functionality testing"""
+        print(f"\n🔍 Testing CSV Upload Functionality Comprehensively...")
+        
+        # Test 1: Valid CSV with all fields
+        print(f"\n   Test 1: Valid CSV with all fields")
+        csv_content = """first_name,last_name,email,company,phone,tags
+John,Doe,john.doe@example.com,Acme Corp,555-1234,lead,prospect
+Jane,Smith,jane.smith@example.com,Tech Inc,555-5678,customer
+Bob,Johnson,bob.johnson@example.com,StartupXYZ,555-9999,demo,trial"""
+
+        files = {'file': ('test_contacts.csv', csv_content, 'text/csv')}
+        success, response = self.run_test(
+            "CSV Upload - Valid with all fields",
+            "POST",
+            "contacts/upload-csv",
+            200,
+            files=files,
+            auth_required=True
+        )
+        
+        if success:
+            print(f"   ✅ Contacts created: {response.get('contacts_created', 0)}")
+            print(f"   ✅ Contacts skipped: {response.get('contacts_skipped', 0)}")
+            if response.get('errors'):
+                print(f"   ⚠️  Errors: {response['errors']}")
+        
+        # Test 2: CSV with missing optional fields
+        print(f"\n   Test 2: CSV with missing optional fields")
+        csv_content2 = """first_name,last_name,email,company,phone,tags
+Alice,Wonder,alice.wonder@example.com,,,
+Charlie,Brown,charlie.brown@example.com,Peanuts Inc,,customer"""
+
+        files2 = {'file': ('test_contacts2.csv', csv_content2, 'text/csv')}
+        success2, response2 = self.run_test(
+            "CSV Upload - Missing optional fields",
+            "POST",
+            "contacts/upload-csv",
+            200,
+            files=files2,
+            auth_required=True
+        )
+        
+        if success2:
+            print(f"   ✅ Contacts created: {response2.get('contacts_created', 0)}")
+            print(f"   ✅ Contacts skipped: {response2.get('contacts_skipped', 0)}")
+        
+        # Test 3: Empty CSV
+        print(f"\n   Test 3: Empty CSV")
+        csv_content3 = """first_name,last_name,email,company,phone,tags"""
+        files3 = {'file': ('empty_contacts.csv', csv_content3, 'text/csv')}
+        success3, response3 = self.run_test(
+            "CSV Upload - Empty CSV",
+            "POST",
+            "contacts/upload-csv",
+            200,
+            files=files3,
+            auth_required=True
+        )
+        
+        if success3:
+            print(f"   ✅ Contacts created: {response3.get('contacts_created', 0)}")
+            print(f"   ✅ Contacts skipped: {response3.get('contacts_skipped', 0)}")
+        
+        # Test 4: CSV with invalid email formats
+        print(f"\n   Test 4: CSV with invalid email formats")
+        csv_content4 = """first_name,last_name,email,company,phone,tags
+Valid,User,valid.user@example.com,Company A,,lead
+Invalid,Email1,invalid-email,Company B,,prospect
+Invalid,Email2,@invalid.com,Company C,,customer
+Invalid,Email3,invalid@,Company D,,demo"""
+
+        files4 = {'file': ('invalid_emails.csv', csv_content4, 'text/csv')}
+        success4, response4 = self.run_test(
+            "CSV Upload - Invalid email formats",
+            "POST",
+            "contacts/upload-csv",
+            200,
+            files=files4,
+            auth_required=True
+        )
+        
+        if success4:
+            print(f"   ✅ Contacts created: {response4.get('contacts_created', 0)}")
+            print(f"   ✅ Contacts skipped: {response4.get('contacts_skipped', 0)}")
+            if response4.get('errors'):
+                print(f"   ⚠️  Errors: {response4['errors']}")
+        
+        # Test 5: CSV with missing required fields
+        print(f"\n   Test 5: CSV with missing required fields")
+        csv_content5 = """first_name,last_name,email,company,phone,tags
+,Missing,missing.first@example.com,Company A,,lead
+Missing,,missing.last@example.com,Company B,,prospect
+Missing,Both,,Company C,,customer"""
+
+        files5 = {'file': ('missing_required.csv', csv_content5, 'text/csv')}
+        success5, response5 = self.run_test(
+            "CSV Upload - Missing required fields",
+            "POST",
+            "contacts/upload-csv",
+            200,
+            files=files5,
+            auth_required=True
+        )
+        
+        if success5:
+            print(f"   ✅ Contacts created: {response5.get('contacts_created', 0)}")
+            print(f"   ✅ Contacts skipped: {response5.get('contacts_skipped', 0)}")
+            if response5.get('errors'):
+                print(f"   ⚠️  Errors: {response5['errors']}")
+        
+        # Test 6: CSV with duplicate emails
+        print(f"\n   Test 6: CSV with duplicate emails")
+        csv_content6 = """first_name,last_name,email,company,phone,tags
+First,Duplicate,duplicate@example.com,Company A,,lead
+Second,Duplicate,duplicate@example.com,Company B,,prospect"""
+
+        files6 = {'file': ('duplicates.csv', csv_content6, 'text/csv')}
+        success6, response6 = self.run_test(
+            "CSV Upload - Duplicate emails",
+            "POST",
+            "contacts/upload-csv",
+            200,
+            files=files6,
+            auth_required=True
+        )
+        
+        if success6:
+            print(f"   ✅ Contacts created: {response6.get('contacts_created', 0)}")
+            print(f"   ✅ Contacts skipped: {response6.get('contacts_skipped', 0)}")
+        
+        # Test 7: Verify contacts were actually created in database
+        print(f"\n   Test 7: Verify contacts in database")
+        success7, contacts_list = self.test_get_contacts()
+        if success7:
+            print(f"   ✅ Total contacts in database: {len(contacts_list)}")
+            # Check for specific contacts we created
+            created_emails = ['john.doe@example.com', 'jane.smith@example.com', 'alice.wonder@example.com']
+            found_contacts = [c for c in contacts_list if c.get('email') in created_emails]
+            print(f"   ✅ Found {len(found_contacts)} expected contacts from CSV uploads")
+            
+            for contact in found_contacts:
+                print(f"     - {contact.get('first_name')} {contact.get('last_name')} ({contact.get('email')})")
+        
+        # Calculate overall success
+        all_tests = [success, success2, success3, success4, success5, success6, success7]
+        passed_tests = sum(all_tests)
+        total_tests = len(all_tests)
+        
+        print(f"\n📊 CSV Upload Test Results: {passed_tests}/{total_tests} tests passed")
+        
+        return all(all_tests)
+
     def test_csv_upload(self):
-        """Test CSV upload functionality"""
+        """Test basic CSV upload functionality (legacy method)"""
         # Create a sample CSV content
         csv_content = """first_name,last_name,email,company,phone,tags
 John,Doe,john.doe@example.com,Acme Corp,555-1234,lead,prospect
@@ -645,7 +798,8 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
             "POST",
             "contacts/upload-csv",
             200,
-            files=files
+            files=files,
+            auth_required=True
         )
         
         if success:
