@@ -276,7 +276,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Stripe Subscription Integration"
+    - "Enhanced Campaign Management System with A/B Testing and Variables"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
