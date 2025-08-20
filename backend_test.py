@@ -459,6 +459,7 @@ def main():
     
     finally:
         # Cleanup
+        tester.cleanup_created_campaigns()
         tester.cleanup_created_contacts()
     
     return result
