@@ -223,6 +223,144 @@ Bob,Johnson,bob.johnson@example.com,,,demo,trial"""
         )
         return success
 
+    # Campaign Testing Methods
+    def test_create_campaign(self, name, subject, content, contact_ids=None, description=None):
+        """Create a campaign"""
+        campaign_data = {
+            "name": name,
+            "subject": subject,
+            "content": content,
+            "contact_ids": contact_ids or [],
+            "daily_limit": 50,
+            "delay_between_emails": 300,
+            "personalization_enabled": True
+        }
+        if description:
+            campaign_data["description"] = description
+
+        success, response = self.run_test(
+            f"Create Campaign - {name}",
+            "POST",
+            "campaigns",
+            200,
+            data=campaign_data
+        )
+        if success and 'id' in response:
+            self.created_campaign_ids.append(response['id'])
+            return response['id']
+        return None
+
+    def test_get_campaigns(self):
+        """Get all campaigns"""
+        success, response = self.run_test(
+            "Get All Campaigns",
+            "GET",
+            "campaigns",
+            200
+        )
+        if success and isinstance(response, list):
+            print(f"   Found {len(response)} campaigns")
+        return success, response
+
+    def test_get_single_campaign(self, campaign_id):
+        """Get a single campaign by ID"""
+        success, response = self.run_test(
+            f"Get Single Campaign",
+            "GET",
+            f"campaigns/{campaign_id}",
+            200
+        )
+        return success, response
+
+    def test_update_campaign(self, campaign_id, update_data):
+        """Update a campaign"""
+        success, response = self.run_test(
+            f"Update Campaign",
+            "PUT",
+            f"campaigns/{campaign_id}",
+            200,
+            data=update_data
+        )
+        return success
+
+    def test_delete_campaign(self, campaign_id):
+        """Delete a campaign"""
+        success, response = self.run_test(
+            f"Delete Campaign",
+            "DELETE",
+            f"campaigns/{campaign_id}",
+            200
+        )
+        return success
+
+    def test_campaign_preview(self, campaign_id, contact_id):
+        """Test campaign preview with personalization"""
+        success, response = self.run_test(
+            f"Campaign Preview",
+            "POST",
+            f"campaigns/{campaign_id}/preview?contact_id={contact_id}",
+            200
+        )
+        if success:
+            required_fields = ['subject', 'content', 'contact']
+            for field in required_fields:
+                if field not in response:
+                    print(f"❌ Missing field in preview: {field}")
+                    return False
+            print(f"   Preview subject: {response.get('subject', '')[:50]}...")
+            print(f"   Preview content: {response.get('content', '')[:50]}...")
+        return success
+
+    def test_campaign_analytics(self, campaign_id):
+        """Test campaign analytics endpoint"""
+        success, response = self.run_test(
+            f"Campaign Analytics",
+            "GET",
+            f"campaigns/{campaign_id}/analytics",
+            200
+        )
+        if success:
+            required_fields = ['campaign_id', 'campaign_name', 'total_emails', 'sent_emails', 
+                             'delivered_emails', 'opened_emails', 'clicked_emails', 'bounced_emails', 
+                             'failed_emails', 'open_rate', 'click_rate', 'bounce_rate']
+            for field in required_fields:
+                if field not in response:
+                    print(f"❌ Missing field in analytics: {field}")
+                    return False
+            print(f"   Analytics: {response}")
+        return success
+
+    def test_enhanced_dashboard_stats(self):
+        """Test enhanced dashboard stats with new fields"""
+        success, response = self.run_test(
+            "Enhanced Dashboard Stats",
+            "GET",
+            "stats/dashboard",
+            200
+        )
+        if success:
+            required_fields = ['total_contacts', 'total_campaigns', 'recent_contacts', 
+                             'active_campaigns', 'total_emails_sent', 'overall_open_rate']
+            for field in required_fields:
+                if field not in response:
+                    print(f"❌ Missing field in enhanced stats: {field}")
+                    return False
+            print(f"   Enhanced Stats: {response}")
+        return success
+
+    def cleanup_created_campaigns(self):
+        """Clean up campaigns created during testing"""
+        print(f"\n🧹 Cleaning up {len(self.created_campaign_ids)} created campaigns...")
+        for campaign_id in self.created_campaign_ids:
+            try:
+                response = requests.delete(f"{self.api_url}/campaigns/{campaign_id}")
+                if response.status_code == 200:
+                    print(f"   ✅ Deleted campaign {campaign_id}")
+                else:
+                    print(f"   ❌ Failed to delete campaign {campaign_id}")
+            except Exception as e:
+                print(f"   ❌ Error deleting campaign {campaign_id}: {str(e)}")
+
     def cleanup_created_contacts(self):
         """Clean up contacts created during testing"""
         print(f"\n🧹 Cleaning up {len(self.created_contact_ids)} created contacts...")
