@@ -789,18 +789,39 @@ const Contacts = () => {
         },
       });
 
+      const { contacts_created, contacts_skipped, errors } = response.data;
+      
+      // Show detailed success message
+      let description = `${contacts_created} contacts imported successfully`;
+      if (contacts_skipped > 0) {
+        description += `, ${contacts_skipped} skipped (duplicates)`;
+      }
+      if (errors && errors.length > 0) {
+        description += `, ${errors.length} errors found`;
+      }
+
       toast({
-        title: "Success",
-        description: `${response.data.contacts_created} contacts added successfully`,
+        title: "CSV Import Complete",
+        description: description,
       });
+
+      // Show errors if any (first few)
+      if (errors && errors.length > 0) {
+        console.log('CSV Import Errors:', errors);
+        toast({
+          title: "Import Warnings",
+          description: `Some rows had issues: ${errors.slice(0, 2).join(', ')}${errors.length > 2 ? '...' : ''}`,
+          variant: "destructive"
+        });
+      }
 
       setSelectedFile(null);
       fetchContacts();
     } catch (error) {
       console.error('Error uploading CSV:', error);
       toast({
-        title: "Error",
-        description: error.response?.data?.detail || "Failed to upload CSV",
+        title: "CSV Import Failed",
+        description: error.response?.data?.detail || "Failed to upload CSV file. Check file format and try again.",
         variant: "destructive"
       });
     } finally {
