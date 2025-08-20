@@ -2668,7 +2668,7 @@ function App() {
                   <Routes>
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/contacts" element={<Contacts />} />
-                    <Route path="/campaigns" element={<Campaigns />} />
+                    {/* <Route path="/campaigns" element={<Campaigns />} /> */}
                     <Route path="/smtp" element={<SMTPConfigs />} />
                     <Route path="/subscription" element={<Subscription />} />
                     <Route path="/" element={<Dashboard />} />
