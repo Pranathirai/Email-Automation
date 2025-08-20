@@ -55,7 +55,7 @@ SUBSCRIPTION_PLANS = {
         "contacts_limit": 100,
         "campaigns_limit": 2,
         "emails_per_day": 50,
-        "inboxes_limit": 1
+        "inboxes_limit": 999999  # Unlimited inboxes for free tier
     },
     "pro": {
         "name": "Pro Plan",
@@ -63,7 +63,7 @@ SUBSCRIPTION_PLANS = {
         "contacts_limit": 5000,
         "campaigns_limit": 20,
         "emails_per_day": 1000,
-        "inboxes_limit": 5
+        "inboxes_limit": 999999  # Unlimited inboxes for pro tier
     },
     "agency": {
         "name": "Agency Plan", 
@@ -71,7 +71,7 @@ SUBSCRIPTION_PLANS = {
         "contacts_limit": 50000,
         "campaigns_limit": 100,
         "emails_per_day": 10000,
-        "inboxes_limit": 25
+        "inboxes_limit": 999999  # Unlimited inboxes for agency tier
     }
 }
 
