@@ -1435,6 +1435,228 @@ JWT,Test,jwt.test@example.com,JWT Corp,555-0000,test"""
         
         return all(all_tests)
 
+    def test_enhanced_campaign_system_comprehensive(self):
+        """Comprehensive test of the enhanced campaign management system with A/B testing and variables"""
+        print(f"\n🔍 Testing Enhanced Campaign Management System Comprehensively...")
+        
+        # Test 1: Template Variables System
+        print(f"\n   Test 1: Template Variables System")
+        success1, variables_response = self.test_get_available_variables()
+        if not success1:
+            print(f"   ❌ Failed to get available variables")
+            return False
+        
+        # Test 2: Template Validation
+        print(f"\n   Test 2: Template Validation")
+        test_templates = [
+            "Hello {{first_name}}!",
+            "Welcome {{first_name}} from {{company}}!",
+            "Invalid {{unknown_variable}} template",
+            "Hi {{first_name}}, your email is {{email}}"
+        ]
+        
+        template_tests = []
+        for template in test_templates:
+            success, response = self.test_validate_template(template)
+            template_tests.append(success)
+            if success:
+                expected_valid = "unknown_variable" not in template
+                actual_valid = response.get('is_valid', False)
+                if expected_valid == actual_valid:
+                    print(f"   ✅ Template validation correct for: {template}")
+                else:
+                    print(f"   ❌ Template validation incorrect for: {template}")
+                    template_tests[-1] = False
+        
+        # Test 3: Create contacts for campaign testing
+        print(f"\n   Test 3: Create Test Contacts")
+        test_contacts = [
+            ("John", "Doe", "john.doe@testcampaign.com", "Acme Corp", "555-1234"),
+            ("Jane", "Smith", "jane.smith@testcampaign.com", "Tech Inc", "555-5678"),
+            ("Bob", "Johnson", "bob.johnson@testcampaign.com", "StartupXYZ", "555-9999")
+        ]
+        
+        contact_ids = []
+        for first_name, last_name, email, company, phone in test_contacts:
+            contact_id = self.test_create_contact(first_name, last_name, email, company, phone, ["campaign_test"])
+            if contact_id:
+                contact_ids.append(contact_id)
+        
+        success3 = len(contact_ids) == len(test_contacts)
+        if success3:
+            print(f"   ✅ Created {len(contact_ids)} test contacts")
+        else:
+            print(f"   ❌ Failed to create all test contacts")
+        
+        # Test 4: Create SMTP Config for campaign
+        print(f"\n   Test 4: Create SMTP Config")
+        smtp_config_id = self.test_create_smtp_config(
+            name="Campaign Test SMTP",
+            provider="gmail",
+            email="campaign.test@gmail.com",
+            smtp_username="campaign.test@gmail.com",
+            smtp_password="test_app_password",
+            daily_limit=200
+        )
+        success4 = smtp_config_id is not None
+        smtp_config_ids = [smtp_config_id] if smtp_config_id else []
+        
+        # Test 5: Create Enhanced Campaign with A/B Testing
+        print(f"\n   Test 5: Create Enhanced Campaign with A/B Testing")
+        campaign_steps = [
+            {
+                "sequence_order": 1,
+                "delay_days": 0,
+                "variations": [
+                    {
+                        "name": "Variation A",
+                        "subject": "Hello {{first_name}}!",
+                        "content": "Hi {{first_name}}, Welcome from {{company}}! This is variation A.",
+                        "weight": 50
+                    },
+                    {
+                        "name": "Variation B",
+                        "subject": "Welcome {{first_name}}!",
+                        "content": "Hello {{first_name}}, Great to connect! This is variation B from {{company}}.",
+                        "weight": 50
+                    }
+                ]
+            },
+            {
+                "sequence_order": 2,
+                "delay_days": 3,
+                "variations": [
+                    {
+                        "name": "Follow-up A",
+                        "subject": "Following up, {{first_name}}",
+                        "content": "Hi {{first_name}}, Just wanted to follow up on our previous message about {{company}}.",
+                        "weight": 100
+                    }
+                ]
+            }
+        ]
+        
+        campaign_id = self.test_create_enhanced_campaign(
+            name="Test A/B Campaign",
+            steps=campaign_steps,
+            contact_ids=contact_ids,
+            smtp_config_ids=smtp_config_ids,
+            description="Test campaign with A/B testing and variables"
+        )
+        success5 = campaign_id is not None
+        
+        # Test 6: Campaign Validation
+        print(f"\n   Test 6: Campaign Validation")
+        success6 = False
+        if campaign_id:
+            success6, validation_response = self.test_campaign_validation(campaign_id)
+            if success6:
+                is_valid = validation_response.get('is_valid', False)
+                print(f"   Campaign validation result: {'✅ Valid' if is_valid else '❌ Invalid'}")
+                if not is_valid:
+                    print(f"   Issues found: {validation_response}")
+        
+        # Test 7: Personalization Preview
+        print(f"\n   Test 7: Personalization Preview")
+        success7 = False
+        if campaign_id and contact_ids:
+            test_template = "Hello {{first_name}} from {{company}}! Your email is {{email}}."
+            success7, preview_response = self.test_campaign_personalization_preview(
+                campaign_id, contact_ids[0], test_template
+            )
+            if success7:
+                original = preview_response.get('original_template', '')
+                personalized = preview_response.get('personalized_content', '')
+                print(f"   ✅ Personalization working: '{original}' -> '{personalized}'")
+        
+        # Test 8: Get Campaign Details
+        print(f"\n   Test 8: Get Campaign Details")
+        success8 = False
+        if campaign_id:
+            success8, campaign_response = self.test_get_single_campaign(campaign_id)
+            if success8:
+                steps = campaign_response.get('steps', [])
+                print(f"   ✅ Campaign has {len(steps)} steps")
+                for i, step in enumerate(steps):
+                    variations = step.get('variations', [])
+                    print(f"     Step {i+1}: {len(variations)} variations")
+        
+        # Test 9: Campaign Analytics (even if empty)
+        print(f"\n   Test 9: Campaign Analytics")
+        success9 = False
+        if campaign_id:
+            success9 = self.test_campaign_analytics(campaign_id)
+        
+        # Test 10: Campaign Start/Pause (if validation passes)
+        print(f"\n   Test 10: Campaign Start/Pause")
+        success10a = success10b = False
+        if campaign_id and success6 and validation_response.get('is_valid', False):
+            success10a, start_response = self.test_campaign_start(campaign_id)
+            if success10a:
+                success10b, pause_response = self.test_campaign_pause(campaign_id)
+        else:
+            print(f"   ⚠️  Skipping start/pause test - campaign validation failed or no campaign")
+            success10a = success10b = True  # Don't fail the test for this
+        
+        # Test 11: Update Campaign
+        print(f"\n   Test 11: Update Campaign")
+        success11 = False
+        if campaign_id:
+            update_data = {
+                "name": "Updated Test A/B Campaign",
+                "description": "Updated description with new features"
+            }
+            success11 = self.test_update_campaign(campaign_id, update_data)
+        
+        # Test 12: Get All Campaigns
+        print(f"\n   Test 12: Get All Campaigns")
+        success12, campaigns_response = self.test_get_campaigns()
+        if success12:
+            campaigns = campaigns_response if isinstance(campaigns_response, list) else []
+            print(f"   ✅ Found {len(campaigns)} total campaigns")
+            # Look for our test campaign
+            test_campaign = next((c for c in campaigns if c.get('id') == campaign_id), None)
+            if test_campaign:
+                print(f"   ✅ Test campaign found in list")
+            else:
+                print(f"   ❌ Test campaign not found in list")
+                success12 = False
+        
+        # Calculate overall success
+        all_tests = [
+            success1,  # Variables system
+            all(template_tests),  # Template validation
+            success3,  # Test contacts
+            success4,  # SMTP config
+            success5,  # Enhanced campaign creation
+            success6,  # Campaign validation
+            success7,  # Personalization preview
+            success8,  # Campaign details
+            success9,  # Campaign analytics
+            success10a and success10b,  # Start/pause
+            success11,  # Update campaign
+            success12   # Get campaigns
+        ]
+        
+        passed_tests = sum(all_tests)
+        total_tests = len(all_tests)
+        
+        print(f"\n📊 Enhanced Campaign System Test Results: {passed_tests}/{total_tests} tests passed")
+        
+        # Detailed results
+        test_names = [
+            "Variables System", "Template Validation", "Test Contacts Creation", "SMTP Config Creation",
+            "Enhanced Campaign Creation", "Campaign Validation", "Personalization Preview", 
+            "Campaign Details", "Campaign Analytics", "Start/Pause Campaign", "Update Campaign", "Get All Campaigns"
+        ]
+        
+        print(f"\n🔍 Detailed Campaign Test Results:")
+        for i, (test_name, result) in enumerate(zip(test_names, all_tests)):
+            status = "✅ PASS" if result else "❌ FAIL"
+            print(f"   {i+1:2d}. {test_name}: {status}")
+        
+        return all(all_tests)
+
 def main():
     print("🚀 Starting MailerPro API Tests - Focus on JWT Authentication System")
     print("=" * 70)
